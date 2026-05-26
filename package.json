@@ -32,8 +32,19 @@
     "cursor",
     "codex"
   ],
-  "author": "",
+  "author": "SkillPack",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/t59688/skillpack-manager.git"
+  },
+  "homepage": "https://github.com/t59688/skillpack-manager#readme",
+  "bugs": {
+    "url": "https://github.com/t59688/skillpack-manager/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20.0.0"
   },
