@@ -92,8 +92,8 @@ SkillPack 为以下技能目录提供适配器：
 ### 从源码使用
 
 ```bash
-git clone https://github.com/<owner>/<repo>.git
-cd <repo>
+git clone https://github.com/t59688/skillpack-manager.git
+cd skillpack-manager
 npm install
 npm run build
 node dist/index.js --help

@@ -21,7 +21,7 @@ const program = new Command();
 program
   .name("skillpack")
   .description("Package, share, install, audit, and sync AI agent skill packs.")
-  .version("0.1.0");
+  .version("0.1.1");
 
 program.addCommand(scanCommand());
 program.addCommand(createCommand());

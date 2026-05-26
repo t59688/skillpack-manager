@@ -73,5 +73,6 @@ export async function copyDirSafe(source: string, destination: string, overwrite
     throw new Error(`Destination already exists: ${dest}`);
   }
   await fs.ensureDir(path.dirname(dest));
-  await fs.copy(src, dest, { overwrite, errorOnExist: !overwrite });
+  // Follow symlinks so packs get real files (Windows often blocks creating symlinks without admin/Developer Mode).
+  await fs.copy(src, dest, { overwrite, errorOnExist: !overwrite, dereference: true });
 }
