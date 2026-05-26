@@ -1,6 +1,6 @@
 {
-  "name": "@skillpack/cli",
-  "version": "0.4.1",
+  "name": "@t59688/skillpack",
+  "version": "0.1.0",
   "description": "Open-source CLI for packaging, sharing, installing, auditing, and syncing AI agent skill packs.",
   "type": "module",
   "bin": {
