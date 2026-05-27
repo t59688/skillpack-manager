@@ -57,7 +57,6 @@ skillpack publish my-pack
 - [Repository layout](#repository-layout)
 - [Development](#development)
 - [Safety notes](#safety-notes)
-- [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -787,16 +786,6 @@ skillpack audit ./downloaded-pack
 ```
 
 Current audit checks are intentionally lightweight. Treat skills as executable behavior: inspect instructions and scripts before using them in sensitive environments.
-
-## Roadmap
-
-- Remote registry backend beyond GitHub Releases.
-- Pack signing and provenance metadata.
-- Stronger policy and security scanning.
-- Team dashboards and drift detection.
-- Workspace lockfiles.
-- More agent adapters.
-- Import/export compatibility with other skill ecosystems.
 
 ## Contributing
 
