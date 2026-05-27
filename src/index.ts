@@ -2,6 +2,7 @@
 import { select } from "@inquirer/prompts";
 import chalk from "chalk";
 import { Command } from "commander";
+import packageJson from "../package.json" with { type: "json" };
 import { addCommand } from "./commands/add.js";
 import { auditCommand } from "./commands/audit.js";
 import { bumpCommand } from "./commands/bump.js";
@@ -66,7 +67,7 @@ function buildProgram(options: ProgramOptions): Command {
   program
     .name("skillpack")
     .description("Package, share, install, audit, and sync AI agent skill packs.")
-    .version("0.1.1");
+    .version(packageJson.version);
 
   program.addCommand(scanCommand());
   program.addCommand(createCommand());
