@@ -28,7 +28,7 @@ export async function saveInstalledDb(items: InstalledPack[]): Promise<void> {
 
 export async function recordInstall(entry: InstalledPack): Promise<void> {
   const db = await loadInstalledDb();
-  const filtered = db.filter((item) => !(item.pack === entry.pack && item.target === entry.target));
+  const filtered = db.filter((item) => !(item.pack === entry.pack && item.target === entry.target && (item.targetDir ?? "") === (entry.targetDir ?? "")));
   filtered.push(entry);
   await saveInstalledDb(filtered);
 }

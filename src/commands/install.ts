@@ -2,8 +2,10 @@ import chalk from "chalk";
 import { Command } from "commander";
 import { TARGETS, formatTargetHelp } from "../adapters/targets.js";
 import { inspectResolvedPackSource, installPack, resolvePackSource } from "../core/installer.js";
+import { analyzePackSecurity } from "../core/security.js";
 import { SkillPackManifest, TargetName, TargetSchema } from "../types/schema.js";
 import { getTargetChoices, promptManyTargets, promptText } from "../utils/prompts.js";
+import { printSecuritySummary } from "../utils/security-output.js";
 
 function collectTarget(value: string, previous: string[]): string[] {
   return [...previous, value];
@@ -49,6 +51,7 @@ export function installCommand(): Command {
 
       try {
         printInstallPreview(source, inspected.manifest);
+        printSecuritySummary(await analyzePackSecurity(inspected.packDir));
         const defaults = await defaultInstallTargets(inspected.manifest, options.targetDir);
         const targets: TargetName[] = options.target.length
           ? options.target.map((target) => TargetSchema.parse(target))

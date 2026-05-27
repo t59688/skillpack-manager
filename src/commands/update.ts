@@ -7,11 +7,13 @@ import { downloadSkillPackFromGitHub, isGitHubInstallSource, parseGitHubInstallS
 import { inspectResolvedPackSource, installPack } from "../core/installer.js";
 import { packId } from "../core/manifest.js";
 import { cachePath, findInstalledPacks, installedPackMatches } from "../core/registry.js";
+import { analyzePackSecurity } from "../core/security.js";
 import { compareVersions } from "../core/version.js";
 import { InstalledPack } from "../types/schema.js";
 import { SkillPackError } from "../utils/errors.js";
 import { sha256Directory } from "../utils/fs.js";
 import { isInteractive, promptConfirm } from "../utils/prompts.js";
+import { printSecuritySummary } from "../utils/security-output.js";
 
 type UpdateOptions = {
   token?: string;
@@ -100,6 +102,7 @@ export function updateCommand(): Command {
           available += recordsToUpdate.length;
           for (const record of recordsToUpdate) {
             console.log(`${record.pack}: ${record.version} -> ${inspected.manifest.version} available`);
+            printSecuritySummary(await analyzePackSecurity(inspected.packDir));
             const modified = await modifiedSkills(record);
             if (modified.length > 0 && !options.force) {
               console.log(chalk.yellow(`Modified installed skills: ${modified.join(", ")}`));
