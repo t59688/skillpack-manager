@@ -1,21 +1,21 @@
 import chalk from "chalk";
-import { Command } from "commander";
 import { select } from "@inquirer/prompts";
+import { Command } from "commander";
+import { defaultReleaseTag, getGitHubLogin, getGitHubReleaseByTag, getGitHubRepository, publishToGitHub } from "../core/github.js";
+import { promptGitHubTokenViaBrowser } from "../core/github-auth.js";
+import { resolveGitHubRepoInput } from "../core/github-repo.js";
+import { inferGitHubRepoFromGit } from "../core/github-remote.js";
 import { loadManifest, saveManifest } from "../core/manifest.js";
 import { packSkillPack } from "../core/packer.js";
-import { promptGitHubTokenViaBrowser } from "../core/github-auth.js";
-import { inferGitHubRepoFromGit } from "../core/github-remote.js";
-import { resolveGitHubRepoInput } from "../core/github-repo.js";
-import { defaultReleaseTag, getGitHubLogin, getGitHubReleaseByTag, getGitHubRepository, publishToGitHub } from "../core/github.js";
 import { findWorkspaceByPath, upsertWorkspace } from "../core/state.js";
 import { bumpVersion, VersionBump } from "../core/version.js";
+import { resolvePackDir } from "../core/workspace-resolver.js";
 import { SkillPackManifest } from "../types/schema.js";
 import { SkillPackError } from "../utils/errors.js";
-import { resolvePackDir } from "../core/workspace-resolver.js";
 import { isInteractive, promptConfirm, promptOptionalText, promptSecret, promptText } from "../utils/prompts.js";
 
-type PublishOptions = {
-  out: string;
+export type PublishOptions = {
+  out?: string;
   registry?: string;
   to?: "local" | "github";
   repo?: string;
@@ -30,7 +30,7 @@ type PublishOptions = {
   createRepo?: boolean;
   public?: boolean;
   private?: boolean;
-  bump?: VersionBump;
+  bump?: VersionBump | string;
   state?: boolean;
 };
 
@@ -39,8 +39,8 @@ async function promptRepoVisibility(manifest: SkillPackManifest): Promise<boolea
     message: "GitHub repository visibility",
     default: manifest.visibility === "private" || manifest.visibility === "team",
     choices: [
-      { name: "Public — anyone can install without a token (recommended for sharing)", value: false },
-      { name: "Private — install requires GITHUB_TOKEN (matches skillpack.yaml private/team)", value: true },
+      { name: "Public - anyone can install without a token (recommended for sharing)", value: false },
+      { name: "Private - install requires GITHUB_TOKEN (matches skillpack.yaml private/team)", value: true },
     ],
   });
 }
@@ -93,13 +93,13 @@ async function promptProvider(defaultProvider: "local" | "github" = "local"): Pr
   });
 }
 
-function assertBump(value: string | undefined): VersionBump | undefined {
+function assertBump(value: VersionBump | string | undefined): VersionBump | undefined {
   if (!value) return undefined;
   if (value === "patch" || value === "minor" || value === "major") return value;
   throw new SkillPackError("--bump must be patch, minor, or major.", "INVALID_BUMP");
 }
 
-async function resolveGitHubToken(options: PublishOptions): Promise<string | undefined> {
+export async function resolveGitHubToken(options: PublishOptions): Promise<string | undefined> {
   let token = options.token ?? process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
   if (!token && !options.dryRun) {
     const action = await select({
@@ -129,8 +129,9 @@ async function resolveVersionAndTag(
   options: PublishOptions,
 ): Promise<{ manifest: SkillPackManifest; tag: string; releaseAlreadyExists: boolean }> {
   let currentManifest = manifest;
-  if (options.bump) {
-    currentManifest = { ...currentManifest, version: bumpVersion(currentManifest.version, options.bump) };
+  const bump = assertBump(options.bump);
+  if (bump) {
+    currentManifest = { ...currentManifest, version: bumpVersion(currentManifest.version, bump) };
     await saveManifest(packDir, currentManifest);
     console.log(chalk.green(`Bumped ${manifest.name} to ${currentManifest.version}`));
   }
@@ -180,6 +181,97 @@ async function resolveVersionAndTag(
   return { manifest: currentManifest, tag, releaseAlreadyExists: Boolean(remoteRelease) };
 }
 
+export async function publishPack(packDirArg: string | undefined, options: PublishOptions): Promise<void> {
+  const packDir = await resolvePackDir(packDirArg ?? (await promptText("Skill pack directory to publish", process.cwd())));
+  const remembered = await findWorkspaceByPath(packDir);
+  const initialManifest = await loadManifest(packDir);
+  const provider = options.to ?? remembered?.provider?.type ?? (await promptProvider(remembered?.provider?.type ?? "local"));
+  if (provider !== "local" && provider !== "github") throw new SkillPackError("--to must be either local or github.", "INVALID_PUBLISH_TARGET");
+
+  if (provider === "local") {
+    let manifest = initialManifest;
+    const bump = assertBump(options.bump);
+    if (bump) {
+      manifest = { ...manifest, version: bumpVersion(manifest.version, bump) };
+      await saveManifest(packDir, manifest);
+      console.log(chalk.green(`Bumped ${manifest.name} to ${manifest.version}`));
+    }
+    const artifact = await packSkillPack(packDir, options.out ?? "dist");
+    if (options.state !== false) {
+      await upsertWorkspace({ manifest, localPath: packDir, lastVersion: manifest.version, lastArtifact: artifact });
+    }
+    console.log(chalk.green(`Publish artifact created: ${artifact}`));
+    if (options.registry) console.log(chalk.yellow("Registry upload is not implemented in the local-first OSS build."));
+    else console.log(chalk.dim("Share this file directly, or publish it with --to github --repo owner/repo."));
+    return;
+  }
+
+  const token = await resolveGitHubToken(options);
+  const repo = await resolveGitHubRepo(packDir, initialManifest, options.repo, token, remembered?.provider?.repo);
+  const repoVisibility = resolveRepoVisibilityFlag(initialManifest, options);
+  const { manifest, tag } = await resolveVersionAndTag(packDir, initialManifest, repo, token, options);
+  const artifact = await packSkillPack(packDir, options.out ?? "dist");
+  const releaseName = options.releaseName ?? `${manifest.displayName ?? manifest.name} ${manifest.version}`;
+  const defaultBody = `SkillPack release for ${manifest.owner ? `${manifest.owner}/` : ""}${manifest.name}@${manifest.version}.`;
+  const body = options.body ?? (isInteractive() ? await promptOptionalText("Release notes, optional", defaultBody) : undefined) ?? defaultBody;
+
+  let ensureRepo: Parameters<typeof publishToGitHub>[0]["ensureRepo"];
+  if (!options.dryRun && token) {
+    const existing = await getGitHubRepository(repo, token);
+    if (!existing) {
+      console.log(chalk.yellow(`Repository ${repo} was not found (or not visible with this token).`));
+      const isPrivate = repoVisibility ?? (await promptRepoVisibility(manifest));
+      ensureRepo = {
+        description: manifest.description,
+        isPrivate,
+        createIfMissing: options.createRepo ? true : async () => promptConfirm(`Create GitHub repository ${repo} now?`, true),
+      };
+    } else if (existing.private) {
+      console.log(chalk.dim("This is a private repository. Others must use GITHUB_TOKEN to install, or change visibility on GitHub."));
+    } else {
+      console.log(chalk.dim("Public repository - others can install without a token."));
+    }
+  }
+
+  const result = await publishToGitHub({
+    repo,
+    token,
+    tag,
+    releaseName,
+    body,
+    artifactPath: artifact,
+    draft: options.draft,
+    prerelease: options.prerelease,
+    overwrite: options.overwrite,
+    dryRun: options.dryRun,
+    ensureRepo,
+    onRepoCreated: (repository) => console.log(chalk.green(`Created repository ${repository.full_name} (${repository.html_url})`)),
+    onRepoInitialized: () => console.log(chalk.dim("Initialized empty repository with README.md (required before creating a Release).")),
+  });
+
+  if (options.state !== false) {
+    await upsertWorkspace({
+      manifest,
+      localPath: packDir,
+      provider: { type: "github", repo: result.repo },
+      lastVersion: manifest.version,
+      lastTag: result.tag,
+      lastArtifact: artifact,
+      lastReleaseUrl: result.releaseUrl,
+      lastAssetUrl: result.assetUrl,
+    });
+  }
+
+  if (result.dryRun) console.log(chalk.yellow("Dry run: no GitHub release was created."));
+  else console.log(chalk.green("Published to GitHub Releases."));
+  console.log(`Repo: ${result.repo}`);
+  console.log(`Tag: ${result.tag}`);
+  console.log(`Artifact: ${artifact}`);
+  console.log(`Release: ${result.releaseUrl}`);
+  if (result.assetUrl) console.log(`Download: ${result.assetUrl}`);
+  console.log(chalk.dim(`Workspace remembered: ${packDir} -> github:${result.repo}`));
+}
+
 export function publishCommand(): Command {
   return new Command("publish")
     .description("publish a skill pack locally or to GitHub Releases")
@@ -201,94 +293,5 @@ export function publishCommand(): Command {
     .option("--bump <type>", "bump manifest version before publishing: patch, minor, or major")
     .option("--no-state", "do not record workspace/provider metadata under ~/.skillpack")
     .option("--registry <url>", "legacy registry URL placeholder")
-    .action(async (packDirArg: string | undefined, options: PublishOptions) => {
-      options.bump = assertBump(options.bump);
-      const packDir = await resolvePackDir(packDirArg ?? (await promptText("Skill pack directory to publish", process.cwd())));
-      const remembered = await findWorkspaceByPath(packDir);
-      const initialManifest = await loadManifest(packDir);
-      const provider = options.to ?? remembered?.provider?.type ?? (await promptProvider(remembered?.provider?.type ?? "local"));
-      if (provider !== "local" && provider !== "github") throw new SkillPackError("--to must be either local or github.", "INVALID_PUBLISH_TARGET");
-
-      if (provider === "local") {
-        let manifest = initialManifest;
-        if (options.bump) {
-          manifest = { ...manifest, version: bumpVersion(manifest.version, options.bump) };
-          await saveManifest(packDir, manifest);
-          console.log(chalk.green(`Bumped ${manifest.name} to ${manifest.version}`));
-        }
-        const artifact = await packSkillPack(packDir, options.out);
-        if (options.state !== false) {
-          await upsertWorkspace({ manifest, localPath: packDir, lastVersion: manifest.version, lastArtifact: artifact });
-        }
-        console.log(chalk.green(`Publish artifact created: ${artifact}`));
-        if (options.registry) console.log(chalk.yellow("Registry upload is not implemented in the local-first OSS build."));
-        else console.log(chalk.dim("Share this file directly, or publish it with --to github --repo owner/repo."));
-        return;
-      }
-
-      const token = await resolveGitHubToken(options);
-      const repo = await resolveGitHubRepo(packDir, initialManifest, options.repo, token, remembered?.provider?.repo);
-      const repoVisibility = resolveRepoVisibilityFlag(initialManifest, options);
-      const { manifest, tag } = await resolveVersionAndTag(packDir, initialManifest, repo, token, options);
-      const artifact = await packSkillPack(packDir, options.out);
-      const releaseName = options.releaseName ?? `${manifest.displayName ?? manifest.name} ${manifest.version}`;
-      const defaultBody = `SkillPack release for ${manifest.owner ? `${manifest.owner}/` : ""}${manifest.name}@${manifest.version}.`;
-      const body = options.body ?? (isInteractive() ? await promptOptionalText("Release notes, optional", defaultBody) : undefined) ?? defaultBody;
-
-      let ensureRepo: Parameters<typeof publishToGitHub>[0]["ensureRepo"];
-      if (!options.dryRun && token) {
-        const existing = await getGitHubRepository(repo, token);
-        if (!existing) {
-          console.log(chalk.yellow(`Repository ${repo} was not found (or not visible with this token).`));
-          const isPrivate = repoVisibility ?? (await promptRepoVisibility(manifest));
-          ensureRepo = {
-            description: manifest.description,
-            isPrivate,
-            createIfMissing: options.createRepo ? true : async () => promptConfirm(`Create GitHub repository ${repo} now?`, true),
-          };
-        } else if (existing.private) {
-          console.log(chalk.dim("This is a private repository. Others must use GITHUB_TOKEN to install, or change visibility on GitHub."));
-        } else {
-          console.log(chalk.dim("Public repository — others can install without a token."));
-        }
-      }
-
-      const result = await publishToGitHub({
-        repo,
-        token,
-        tag,
-        releaseName,
-        body,
-        artifactPath: artifact,
-        draft: options.draft,
-        prerelease: options.prerelease,
-        overwrite: options.overwrite,
-        dryRun: options.dryRun,
-        ensureRepo,
-        onRepoCreated: (repository) => console.log(chalk.green(`Created repository ${repository.full_name} (${repository.html_url})`)),
-        onRepoInitialized: () => console.log(chalk.dim("Initialized empty repository with README.md (required before creating a Release).")),
-      });
-
-      if (options.state !== false) {
-        await upsertWorkspace({
-          manifest,
-          localPath: packDir,
-          provider: { type: "github", repo: result.repo },
-          lastVersion: manifest.version,
-          lastTag: result.tag,
-          lastArtifact: artifact,
-          lastReleaseUrl: result.releaseUrl,
-          lastAssetUrl: result.assetUrl,
-        });
-      }
-
-      if (result.dryRun) console.log(chalk.yellow("Dry run: no GitHub release was created."));
-      else console.log(chalk.green("Published to GitHub Releases."));
-      console.log(`Repo: ${result.repo}`);
-      console.log(`Tag: ${result.tag}`);
-      console.log(`Artifact: ${artifact}`);
-      console.log(`Release: ${result.releaseUrl}`);
-      if (result.assetUrl) console.log(`Download: ${result.assetUrl}`);
-      console.log(chalk.dim(`Workspace remembered: ${packDir} -> github:${result.repo}`));
-    });
+    .action(publishPack);
 }

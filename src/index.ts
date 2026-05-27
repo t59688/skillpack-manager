@@ -11,19 +11,21 @@ import { doctorCommand } from "./commands/doctor.js";
 import { downloadCommand } from "./commands/download.js";
 import { installCommand } from "./commands/install.js";
 import { listCommand } from "./commands/list.js";
+import { openCommand } from "./commands/open.js";
 import { packCommand } from "./commands/pack.js";
 import { publishCommand } from "./commands/publish.js";
 import { pullCommand } from "./commands/pull.js";
 import { scanCommand } from "./commands/scan.js";
 import { statusCommand } from "./commands/status.js";
 import { uninstallCommand } from "./commands/uninstall.js";
+import { upgradeCommand } from "./commands/upgrade.js";
 import { isInteractive } from "./utils/prompts.js";
 
 type ProgramOptions = {
   homeMenu: boolean;
 };
 
-type HomeAction = "install" | "create" | "publish" | "pull" | "status" | "scan" | "doctor";
+type HomeAction = "install" | "create" | "publish" | "pull" | "open" | "status" | "scan" | "doctor" | "upgrade";
 
 async function promptHomeAction(): Promise<HomeAction> {
   return select({
@@ -33,9 +35,11 @@ async function promptHomeAction(): Promise<HomeAction> {
       { name: "2. Create a new skill pack", value: "create" as const },
       { name: "3. Publish a pack", value: "publish" as const },
       { name: "4. Pull a pack for editing", value: "pull" as const },
-      { name: "5. Manage my workspaces", value: "status" as const },
-      { name: "6. Scan installed skills", value: "scan" as const },
-      { name: "7. Check environment", value: "doctor" as const },
+      { name: "5. Open a workspace", value: "open" as const },
+      { name: "6. Upgrade a published pack", value: "upgrade" as const },
+      { name: "7. Manage my workspaces", value: "status" as const },
+      { name: "8. Scan installed skills", value: "scan" as const },
+      { name: "9. Check environment", value: "doctor" as const },
     ],
   });
 }
@@ -54,7 +58,9 @@ function buildProgram(options: ProgramOptions): Command {
   program.addCommand(addCommand());
   program.addCommand(packCommand());
   program.addCommand(publishCommand());
+  program.addCommand(upgradeCommand());
   program.addCommand(pullCommand());
+  program.addCommand(openCommand());
   program.addCommand(downloadCommand());
   program.addCommand(installCommand());
   program.addCommand(listCommand());
