@@ -1,9 +1,34 @@
-# SkillPack CLI
+<div align="center">
+
+<pre>
+  ____  _    _ _ _ ____            _    
+ / ___|| | _(_) | |  _ \ __ _  ___| | __
+ \___ \| |/ / | | | |_) / _` |/ __| |/ /
+  ___) |   <| | | |  __/ (_| | (__|   < 
+ |____/|_|\_\_|_|_|_|   \__,_|\___|_|\_\
+</pre>
+
+<strong>SkillPack CLI</strong><br/>
+面向 AI Agent 技能的开源包管理器
+
+<br/>
 
 [English](README.md) | **中文**
 
+<br/>
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
+
+<br/>
+
+```bash
+npm i -g @t59688/skillpack
+```
+
+</div>
+
+---
 
 **SkillPack CLI** 是一款面向 AI Agent 技能的开源包管理器。
 
@@ -88,6 +113,14 @@ SkillPack 为以下技能目录提供适配器：
 - 仅在发布到 GitHub 或从私有仓库安装时需要 GitHub token
 
 ## 安装
+
+### 通过 npm 安装
+
+使用文首 banner 下方的全局安装命令，然后验证：
+
+```bash
+skillpack --help
+```
 
 ### 从源码使用
 
