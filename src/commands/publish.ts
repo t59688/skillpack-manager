@@ -2,7 +2,7 @@ import chalk from "chalk";
 import { select } from "@inquirer/prompts";
 import { Command } from "commander";
 import { defaultReleaseTag, getGitHubLogin, getGitHubReleaseByTag, getGitHubRepository, publishToGitHub } from "../core/github.js";
-import { promptGitHubTokenViaBrowser } from "../core/github-auth.js";
+import { promptGitHubTokenViaBrowser, resolveGitHubTokenFromEnv } from "../core/github-auth.js";
 import { resolveGitHubRepoInput } from "../core/github-repo.js";
 import { inferGitHubRepoFromGit } from "../core/github-remote.js";
 import { loadManifest, saveManifest } from "../core/manifest.js";
@@ -101,7 +101,7 @@ function assertBump(value: VersionBump | string | undefined): VersionBump | unde
 }
 
 export async function resolveGitHubToken(options: PublishOptions): Promise<string | undefined> {
-  let token = options.token ?? process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
+  let token = resolveGitHubTokenFromEnv(options.token);
   if (!token && !options.dryRun) {
     const action = await select({
       message: "No GITHUB_TOKEN/GH_TOKEN found. How to proceed?",

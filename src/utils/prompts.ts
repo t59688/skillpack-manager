@@ -3,13 +3,14 @@ import fs from "fs-extra";
 import { checkbox, confirm, input, password, select } from "@inquirer/prompts";
 import { TARGETS, targetNames, resolveTargetDir } from "../adapters/targets.js";
 import { TargetName, TargetSchema } from "../types/schema.js";
+import { t } from "./i18n.js";
 
 export function isInteractive(): boolean {
   return Boolean(process.stdin.isTTY && process.stdout.isTTY && process.env.CI !== "true");
 }
 
 export function requireInteractive(message: string): void {
-  if (!isInteractive()) throw new Error(`${message} Pass the required arguments/options when running non-interactively.`);
+  if (!isInteractive()) throw new Error(t("prompt.nonInteractive", { message }));
 }
 
 export async function promptText(message: string, defaultValue?: string): Promise<string> {
@@ -31,15 +32,15 @@ export async function promptConfirm(message: string, defaultValue = false): Prom
 }
 
 export async function promptVisibility(defaultValue: "private" | "unlisted" | "public" | "team" = "private"): Promise<"private" | "unlisted" | "public" | "team"> {
-  requireInteractive("Choose visibility");
+  requireInteractive(t("prompt.visibility.message"));
   return select({
-    message: "Visibility",
+    message: t("prompt.visibility.message"),
     default: defaultValue,
     choices: [
-      { name: "Private - only local/private sharing", value: "private" as const },
-      { name: "Unlisted - accessible by direct link", value: "unlisted" as const },
-      { name: "Public - discoverable", value: "public" as const },
-      { name: "Team - visible to a team/org", value: "team" as const },
+      { name: t("prompt.visibility.private"), value: "private" as const },
+      { name: t("prompt.visibility.unlisted"), value: "unlisted" as const },
+      { name: t("prompt.visibility.public"), value: "public" as const },
+      { name: t("prompt.visibility.team"), value: "team" as const },
     ],
   });
 }
@@ -61,11 +62,11 @@ export async function getTargetChoices(customLocalDir?: string): Promise<TargetC
 }
 
 function targetLabel(choice: TargetChoice): string {
-  const status = choice.exists ? "found" : "not found yet";
+  const status = choice.exists ? t("prompt.target.found") : t("prompt.target.notFound");
   return `${choice.displayName} (${choice.dir}) - ${status}`;
 }
 
-export async function promptOneTarget(message = "Choose target agent", defaultTarget?: TargetName): Promise<TargetName> {
+export async function promptOneTarget(message = t("prompt.target.chooseOne"), defaultTarget?: TargetName): Promise<TargetName> {
   requireInteractive(message);
   const choices = await getTargetChoices();
   const detected = choices.find((choice) => choice.exists && choice.target !== "local")?.target;
@@ -76,7 +77,7 @@ export async function promptOneTarget(message = "Choose target agent", defaultTa
   });
 }
 
-export async function promptManyTargets(message = "Choose target agents", defaults?: TargetName[], customLocalDir?: string): Promise<TargetName[]> {
+export async function promptManyTargets(message = t("prompt.target.chooseMany"), defaults?: TargetName[], customLocalDir?: string): Promise<TargetName[]> {
   requireInteractive(message);
   const choices = await getTargetChoices(customLocalDir);
   const defaultTargets = defaults ?? [];
@@ -93,11 +94,11 @@ export async function promptManyTargets(message = "Choose target agents", defaul
 }
 
 export async function promptScanLocations(defaultPath?: string): Promise<string[]> {
-  requireInteractive("Choose locations to scan");
+  requireInteractive(t("prompt.scan.require"));
   const targetChoices = await getTargetChoices();
   const current = path.resolve(defaultPath ?? process.cwd());
   const selected = await checkbox({
-    message: "Where should I look for skills?",
+    message: t("prompt.scan.message"),
     required: true,
     choices: [
       ...targetChoices.map((choice) => ({
@@ -105,14 +106,14 @@ export async function promptScanLocations(defaultPath?: string): Promise<string[
         value: choice.dir,
         checked: choice.exists && choice.target !== "local",
       })),
-      { name: `Current directory (${current})`, value: current, checked: true },
-      { name: "Custom directory", value: "__custom__", checked: false },
+      { name: t("prompt.scan.currentDirectory", { path: current }), value: current, checked: true },
+      { name: t("prompt.scan.customDirectory"), value: "__custom__", checked: false },
     ],
   });
   const locations: string[] = [];
   for (const value of selected) {
     if (value === "__custom__") {
-      locations.push(await promptText("Custom directory to scan", current));
+      locations.push(await promptText(t("prompt.scan.customDirectoryInput"), current));
     } else {
       locations.push(value);
     }

@@ -1,13 +1,14 @@
 import chalk from "chalk";
 import { Command } from "commander";
 import { scanSkills } from "../core/scanner.js";
+import { t } from "../utils/i18n.js";
 import { isInteractive, promptScanLocations } from "../utils/prompts.js";
 
 export function scanCommand(): Command {
   return new Command("scan")
-    .description("scan one or more directories for skills")
-    .argument("[path]", "directory to scan; omit for an interactive agent-directory picker")
-    .option("-a, --agents", "scan common agent skill directories")
+    .description(t("command.scan.description"))
+    .argument("[path]", t("command.scan.path.argument"))
+    .option("-a, --agents", t("command.scan.agents.option"))
     .action(async (scanPath: string | undefined, options: { agents?: boolean }) => {
       const locations = scanPath && !options.agents ? [scanPath] : isInteractive() ? await promptScanLocations(scanPath) : [scanPath ?? process.cwd()];
       let total = 0;
@@ -15,7 +16,7 @@ export function scanCommand(): Command {
         const results = await scanSkills(location);
         console.log(chalk.bold(`\n${location}`));
         if (results.length === 0) {
-          console.log(chalk.yellow("No skills found."));
+          console.log(chalk.yellow(t("scan.none")));
           continue;
         }
         total += results.length;
@@ -24,6 +25,6 @@ export function scanCommand(): Command {
           if (result.description) console.log(`  ${chalk.dim(result.description)}`);
         }
       }
-      console.log(chalk.bold(`\nFound ${total} skill${total === 1 ? "" : "s"} total.`));
+      console.log(chalk.bold(`\n${t("scan.total", { count: total })}`));
     });
 }

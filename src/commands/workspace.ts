@@ -7,6 +7,7 @@ import { summarizeWorkspaces } from "../core/workspace-status.js";
 import { resolvePackDir } from "../core/workspace-resolver.js";
 import { SkillPackError } from "../utils/errors.js";
 import { expandHome } from "../utils/fs.js";
+import { t } from "../utils/i18n.js";
 import { isInteractive, promptConfirm } from "../utils/prompts.js";
 import { printWorkspaceStatus } from "../utils/workspace-output.js";
 
@@ -28,23 +29,24 @@ async function moveWorkspace(reference: string, destinationArg: string, options:
   const source = await resolvePackDir(reference);
   const workspace = await findWorkspaceByPath(source);
   if (!workspace) {
-    throw new SkillPackError(`No workspace binding found for ${reference}. Run 'skillpack status' to see remembered workspaces.`, "WORKSPACE_NOT_FOUND");
+    throw new SkillPackError(t("workspace.error.noBinding", { reference }), "WORKSPACE_NOT_FOUND");
   }
   if (!(await fs.pathExists(source))) {
-    throw new SkillPackError(`Workspace path does not exist: ${source}`, "WORKSPACE_NOT_FOUND");
+    throw new SkillPackError(t("workspace.error.pathMissing", { path: source }), "WORKSPACE_NOT_FOUND");
   }
 
   const destination = path.resolve(expandHome(destinationArg));
   if (source === destination) {
     await updateWorkspaceLocalPath(workspace.id, destination);
-    console.log(chalk.dim(`Workspace already at ${destination}`));
+    console.log(chalk.dim(t("workspace.alreadyAt", { path: destination })));
     return;
   }
 
   if (!(await isEmptyDirectory(destination))) {
-    const shouldOverwrite = options.overwrite ?? (isInteractive() ? await promptConfirm(`Destination ${destination} already exists. Replace it?`, false) : false);
+    const shouldOverwrite =
+      options.overwrite ?? (isInteractive() ? await promptConfirm(t("workspace.confirm.replaceDestination", { path: destination }), false) : false);
     if (!shouldOverwrite) {
-      throw new SkillPackError(`Destination already exists: ${destination}. Re-run with --overwrite or choose another directory.`, "WORKSPACE_EXISTS");
+      throw new SkillPackError(t("workspace.error.destinationExists", { path: destination }), "WORKSPACE_EXISTS");
     }
     await fs.remove(destination);
   }
@@ -53,29 +55,29 @@ async function moveWorkspace(reference: string, destinationArg: string, options:
   await fs.move(source, destination, { overwrite: true });
   await updateWorkspaceLocalPath(workspace.id, destination);
 
-  console.log(chalk.green(`Moved ${workspace.pack}`));
-  console.log(`From: ${source}`);
-  console.log(`To: ${destination}`);
+  console.log(chalk.green(t("workspace.moved", { pack: workspace.pack })));
+  console.log(t("workspace.from", { path: source }));
+  console.log(t("workspace.to", { path: destination }));
 }
 
 export function workspaceCommand(): Command {
-  const command = new Command("workspace").description("list and manage remembered skill pack workspaces");
+  const command = new Command("workspace").description(t("command.workspace.description"));
 
   command
     .command("list")
     .alias("ls")
-    .description("list remembered skill pack workspaces")
-    .option("--token <token>", "GitHub token; defaults to GITHUB_TOKEN or GH_TOKEN")
+    .description(t("command.workspace.list.description"))
+    .option("--token <token>", t("command.token.option"))
     .action(async (options: WorkspaceListOptions) => {
       printWorkspaceStatus(await summarizeWorkspaces(options.token));
     });
 
   command
     .command("move")
-    .description("move a remembered workspace to a new directory")
-    .argument("<pack>", "workspace reference, pack name, owner/name, GitHub repo, or local path")
-    .argument("<destination>", "new workspace directory")
-    .option("--overwrite", "replace an existing destination directory")
+    .description(t("command.workspace.move.description"))
+    .argument("<pack>", t("command.workspace.move.pack.argument"))
+    .argument("<destination>", t("command.workspace.move.destination.argument"))
+    .option("--overwrite", t("command.workspace.move.overwrite.option"))
     .action(moveWorkspace);
 
   return command;

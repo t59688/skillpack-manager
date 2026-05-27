@@ -30,12 +30,15 @@ const WorkspaceSchema = z.object({
 
 const StateSchema = z.object({
   schema: z.string().default("https://skillpack.dev/schemas/state.v1.json"),
+  language: z.enum(["en", "zh-CN"]).default("en"),
+  githubToken: z.string().optional(),
   workspaces: z.array(WorkspaceSchema).default([]),
 });
 
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 export type SkillPackState = z.infer<typeof StateSchema>;
 export type Provider = z.infer<typeof ProviderSchema>;
+export type Language = SkillPackState["language"];
 
 export function skillpackHome(): string {
   return path.join(os.homedir(), ".skillpack");
@@ -71,9 +74,28 @@ export function packIdentity(manifest: Pick<SkillPackManifest, "owner" | "name">
 
 export async function loadState(): Promise<SkillPackState> {
   const filePath = statePath();
-  if (!(await fs.pathExists(filePath))) return { schema: "https://skillpack.dev/schemas/state.v1.json", workspaces: [] };
+  if (!(await fs.pathExists(filePath))) return StateSchema.parse({});
   const parsed = YAML.parse(await readText(filePath)) ?? {};
   return StateSchema.parse(parsed);
+}
+
+export async function loadLanguagePreference(): Promise<Language | undefined> {
+  const filePath = statePath();
+  if (!(await fs.pathExists(filePath))) return undefined;
+
+  const parsed = YAML.parse(await readText(filePath)) ?? {};
+  const language = parsed && typeof parsed === "object" ? (parsed as { language?: unknown }).language : undefined;
+  return language === "en" || language === "zh-CN" ? language : undefined;
+}
+
+export async function loadGitHubToken(): Promise<string | undefined> {
+  const state = await loadState();
+  return state.githubToken;
+}
+
+export async function saveGitHubToken(token: string | undefined): Promise<void> {
+  const state = await loadState();
+  await saveState({ ...state, githubToken: token });
 }
 
 export async function saveState(state: SkillPackState): Promise<void> {

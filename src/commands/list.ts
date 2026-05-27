@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { TARGETS } from "../adapters/targets.js";
 import { loadInstalledDb } from "../core/registry.js";
 import { InstalledPack } from "../types/schema.js";
+import { t } from "../utils/i18n.js";
 
 function groupKey(item: InstalledPack): string {
   return `${item.pack}\0${item.version}\0${item.source}`;
@@ -14,14 +15,14 @@ function targetDir(item: InstalledPack): string {
 }
 
 export function listCommand(): Command {
-  return new Command("list").description("list installed skill packs").action(async () => {
+  return new Command("list").description(t("command.list.description")).action(async () => {
     const items = await loadInstalledDb();
     if (items.length === 0) {
-      console.log(chalk.yellow("No installed packs recorded."));
+      console.log(chalk.yellow(t("list.none")));
       return;
     }
 
-    console.log(chalk.bold("Installed packs:"));
+    console.log(chalk.bold(t("list.title")));
     const groups = new Map<string, InstalledPack[]>();
     for (const item of items) groups.set(groupKey(item), [...(groups.get(groupKey(item)) ?? []), item]);
 
@@ -30,12 +31,12 @@ export function listCommand(): Command {
       const skillNames = [...new Set(records.flatMap((record) => record.skills.map((skill) => skill.name)))];
       console.log("");
       console.log(chalk.bold(`${first.pack}@${first.version}`));
-      console.log(`Source: ${first.source}`);
-      console.log("Targets:");
+      console.log(t("list.source", { source: first.source }));
+      console.log(t("list.targets"));
       for (const record of records) {
         console.log(`- ${record.target}: ${targetDir(record)}`);
       }
-      console.log("Installed skills:");
+      console.log(t("list.installedSkills"));
       for (const skill of skillNames) console.log(`- ${skill}`);
     }
   });

@@ -1,5 +1,6 @@
 import fs from "fs-extra";
 import path from "node:path";
+import { resolveGitHubTokenFromEnv } from "./github-auth.js";
 import { SkillPackError } from "../utils/errors.js";
 
 export type GitHubPublisherOptions = {
@@ -88,7 +89,7 @@ export function defaultReleaseTag(packName: string, version: string): string {
 }
 
 function resolveToken(token?: string): string | undefined {
-  return token ?? process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
+  return resolveGitHubTokenFromEnv(token);
 }
 
 async function readJson<T>(response: Response): Promise<T> {

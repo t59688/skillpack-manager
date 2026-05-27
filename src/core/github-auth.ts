@@ -1,5 +1,6 @@
 import chalk from "chalk";
 import { select } from "@inquirer/prompts";
+import { loadGitHubToken } from "./state.js";
 import { openUrl } from "../utils/browser.js";
 import { SkillPackError } from "../utils/errors.js";
 import { isInteractive } from "../utils/prompts.js";
@@ -8,6 +9,16 @@ import { promptSecret } from "../utils/prompts.js";
 /** Classic PAT page with repo scope (create releases & upload assets). */
 export const GITHUB_PAT_CREATE_URL =
   "https://github.com/settings/tokens/new?description=skillpack-cli&scopes=repo";
+
+let savedGitHubToken: string | undefined;
+
+export async function initializeSavedGitHubToken(): Promise<void> {
+  savedGitHubToken = await loadGitHubToken();
+}
+
+export function setSavedGitHubToken(token: string | undefined): void {
+  savedGitHubToken = token;
+}
 
 export function printGitHubTokenPermissionHelp(): void {
   console.log(chalk.dim("Token permissions needed to publish releases:"));
@@ -36,7 +47,7 @@ export async function promptGitHubTokenViaBrowser(): Promise<string> {
 }
 
 export function resolveGitHubTokenFromEnv(explicit?: string): string | undefined {
-  return explicit ?? process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
+  return explicit ?? process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? savedGitHubToken;
 }
 
 /** Prompt for a token when installing from a private GitHub repository. */
