@@ -23,6 +23,8 @@ skillpack add
 skillpack publish
 skillpack install github:owner/repo
 skillpack pull github:owner/repo
+skillpack update
+skillpack sync github:owner/repo
 skillpack publish my-pack
 ```
 
@@ -33,6 +35,7 @@ skillpack publish my-pack
 - [支持的 Agent 目标](#支持的-agent-目标)
 - [环境要求](#环境要求)
 - [安装](#安装)
+- [交互式 CLI](#交互式-cli)
   - [通过 npm 安装](#通过-npm-安装)
   - [从源码使用](#从源码使用)
   - [开发时本地链接](#开发时本地链接)
@@ -73,28 +76,29 @@ AI Agent 技能往往以本地文件夹的形式在 Claude Code、Cursor、Codex
 SkillPack 聚焦的工作流如下：
 
 ```text
-扫描本地技能 -> 创建技能包 -> 发布到 GitHub -> 任意环境安装 -> 拉取为工作区 -> 更新并重新发布
+扫描本地技能 -> 创建技能包 -> 发布到 GitHub -> 任意环境安装 -> sync/update 保持最新 -> 拉取为工作区 -> upgrade 并重新发布
 ```
 
 ## 功能特性
 
-- 日常使用的交互式提示。
-- 面向 CI 与高级用户的可脚本化命令。
-- 扫描常见 Agent 技能目录。
-- 创建 `skillpack.yaml` 清单文件。
-- 将一个或多个技能加入技能包。
-- 将技能包打包为 `.skillpack` 制品。
-- 将技能包发布到 GitHub Releases。
-- 发布时若 GitHub 仓库不存在可自动创建。
-- 从本地目录、`.skillpack` 文件、GitHub 仓库或 GitHub release URL 安装。
-- 将 GitHub release 拉取到可编辑的本地工作区。
-- 在 `~/.skillpack/state.yaml` 中记录工作区与提供方绑定。
-- 升级发布时无需重复输入 GitHub 仓库。
-- 重新发布前检查远程 GitHub release 标签是否已存在。
-- 使用 `patch`、`minor` 或 `major` 递增包版本。
-- 对比本地技能包与已安装的 Agent 目录差异。
-- 审计技能包结构与基础安全问题。
-- 仅卸载由 SkillPack 安装的技能。
+- **交互式主菜单** — 在 TTY 中直接运行 `skillpack`（无子命令）可快速选择常用操作。
+- 日常交互提示与面向 CI 的可脚本化参数。
+- 扫描常见 Agent 技能目录（`skillpack scan --agents`）。
+- 创建 `skillpack.yaml` 清单；添加技能并记录 checksum；SemVer 版本递增。
+- 打包为 `.skillpack` 或 `.zip` 制品（`pack` 会先审计，有错则中止）。
+- 发布到本地制品或 **GitHub Releases**；可自动建库；更新 GitHub README 安装说明。
+- **`skillpack upgrade`** — 对比工作区与最新 release、生成 release 说明、审计、递增版本并一键发布。
+- 从本地包目录、`.skillpack`/`.zip` 文件、`github:owner/repo` 或 GitHub URL 安装。
+- **安装前安全摘要**（密钥、远程脚本、风险模式等）。
+- **`sync`** — 将已安装包与新版对齐，并保留你本地额外添加的技能。
+- **`update`** — 按 SemVer 将已安装的 GitHub 包更新到最新 release。
+- **`pull`（`clone`）** — 拉取 release 到 `~/.skillpack/workspaces/` 可编辑工作区。
+- **`open`** 用文件管理器或 VS Code 打开工作区；**`workspace move`** 迁移目录。
+- 工作区记录在 `state.yaml`；安装记录在 `installed.yaml`。
+- 工作区状态：clean、未发布变更、落后远程、仅本地、缺失等。
+- `diff` 可对比 Agent 目录或安装记录（`diff --installed`）。
+- 审计清单、结构与安全问题；`uninstall`/`remove`/`rm` 仅移除 SkillPack 安装的技能。
+- **`doctor`** — 检查 Node、配置路径、token 与各 Agent 技能目录。
 
 ## 支持的 Agent 目标
 
@@ -161,6 +165,26 @@ skillpack --help
 npm run dev -- --help
 node dist/index.js --help
 ```
+
+## 交互式 CLI
+
+在交互式终端（非 CI）中，不带子命令运行 `skillpack` 会打开主菜单：
+
+| 操作 | 对应命令 |
+|---|---|
+| 安装技能包 | `install` |
+| 同步已安装包 | `sync` |
+| 更新已安装包 | `update` |
+| 创建新技能包 | `create` |
+| 发布技能包 | `publish` |
+| 拉取以便编辑 | `pull` |
+| 打开工作区 | `open` |
+| 升级已发布包 | `upgrade` |
+| 管理工作区 | `workspace list` |
+| 扫描技能 | `scan` |
+| 检查环境 | `doctor` |
+
+非交互环境会输出 `skillpack --help`。
 
 ## 快速开始
 
@@ -256,6 +280,13 @@ skillpack install https://github.com/tiechui/my-skillpacks
 skillpack install https://github.com/tiechui/my-skillpacks/releases/tag/sales-pack-v0.1.0
 ```
 
+安装后保持最新：
+
+```bash
+skillpack update
+skillpack sync github:tiechui/my-skillpacks --target claude
+```
+
 ### 7. 在新机器上拉取、编辑并重新发布
 
 ```bash
@@ -280,13 +311,18 @@ skillpack pull github:tiechui/my-skillpacks --out ./sales-pack
 
 ## 状态模型
 
-SkillPack 将持久化元数据保存在：
+SkillPack 在 `~/.skillpack/` 下持久化元数据：
 
-```text
-~/.skillpack/state.yaml
-```
+| 文件/目录 | 用途 |
+|---|---|
+| `state.yaml` | 已记录的工作区与 GitHub 提供方绑定 |
+| `installed.yaml` | 各目标上的安装记录（路径、版本、checksum） |
+| `cache/` | 下载的制品与临时解压目录 |
+| `workspaces/<owner>/<pack>/` | `pull` 后的默认可编辑副本 |
 
-该文件记录本地工作区与提供方绑定，例如：
+### `state.yaml`
+
+工作区与提供方绑定示例：
 
 ```yaml
 schema: https://skillpack.dev/schemas/state.v1.json
@@ -303,6 +339,26 @@ workspaces:
     lastTag: sales-pack-v0.1.0
 ```
 
+`status` 与 `workspace list` 会显示工作区健康状态（如 `clean`、`unpublished changes`、`behind remote`）。GitHub 工作区默认会检查远程最新版本。
+
+### `installed.yaml`
+
+每次安装会追加一条记录，供 `list`、`sync`、`update`、`diff --installed`、`uninstall` 使用：
+
+```yaml
+- pack: tiechui/sales-pack
+  version: "0.1.0"
+  target: claude
+  targetDir: /Users/tiechui/.claude/skills
+  installedAt: "2026-05-27T12:00:00.000Z"
+  source: github:tiechui/my-skillpacks@sales-pack-v0.1.0
+  skills:
+    - name: customer-summary
+      path: /Users/tiechui/.claude/skills/customer-summary
+      version: "0.1.0"
+      checksum: sha256:...
+```
+
 重要行为说明：
 
 - `~/.skillpack` 并非技能包只能存放的位置。
@@ -310,6 +366,7 @@ workspaces:
 - `pull` 默认使用 `~/.skillpack/workspaces/<owner>/<pack>` 以方便管理。
 - `publish sales-pack` 可按包名、完整包 id 或提供方解析已记录的工作区。
 - GitHub release 冲突会与远程仓库核对，而不仅依赖本地状态。
+- `install`、`sync`、`update` 会读写 `installed.yaml`；除非你显式使用 `--force`，否则不会删除你在包外本地新增的技能。
 
 示例：
 
@@ -430,7 +487,7 @@ skillpack audit sales-pack
 
 ### `skillpack pack [packDir]`
 
-将技能包打包为 `.skillpack` 制品。
+将技能包打包为 `.skillpack` 制品。会先运行 `audit`；若存在错误则中止打包。
 
 ```bash
 skillpack pack ./sales-pack
@@ -493,6 +550,33 @@ skillpack publish sales-pack --overwrite
 skillpack publish sales-pack --to github --repo tiechui/my-skillpacks --dry-run
 ```
 
+### `skillpack upgrade [pack]`
+
+对绑定了 GitHub 的工作区执行：递增版本、审计、打包并发布。会对比本地内容与远程最新 release；无变更则跳过；可生成 release 说明。
+
+```bash
+skillpack upgrade sales-pack
+skillpack upgrade sales-pack --bump patch
+skillpack upgrade sales-pack --bump minor --yes
+```
+
+选项：
+
+| 选项 | 说明 |
+|---|---|
+| `--bump <type>` | `patch`、`minor` 或 `major`（非交互模式必填）。 |
+| `-o, --out <dir>` | 打包制品输出目录。 |
+| `--token <token>` | GitHub token。默认 `GITHUB_TOKEN` 或 `GH_TOKEN`。 |
+| `--release-name <name>` | GitHub release 标题。 |
+| `--body <markdown>` | Release 说明（可交互输入或自动生成）。 |
+| `--draft` | 创建草稿 release。 |
+| `--prerelease` | 标记为预发布。 |
+| `--overwrite` | 替换同名已存在的 release 资源。 |
+| `--dry-run` | 仅预览，不调用 GitHub。 |
+| `-y, --yes` | 当远程最新标签与工作区记录不一致时仍继续。 |
+
+需要 `provider.type: github` 的工作区（来自 `pull` 或 `publish --to github`）。
+
 ### `skillpack download [source]`
 
 从 GitHub Releases 下载 `.skillpack` 文件，但不安装。
@@ -545,9 +629,47 @@ skillpack install ./sales-pack --target local --target-dir ./tmp/skills
 | `--token <token>` | 私有仓库的 GitHub token。默认读取 `GITHUB_TOKEN` 或 `GH_TOKEN`。 |
 | `--overwrite` | 覆盖已存在的技能目录。 |
 
+复制前会显示安全摘要。未指定 `--target` 时，默认使用清单中的 `targets` 或检测到的 Agent 目录。
+
+### `skillpack sync [source]`
+
+将**已安装**的技能包与较新版本对齐：补齐缺失、更新过期项，并**保留你本地额外添加的技能**。GitHub 来源会自动解析最新 release。
+
+```bash
+skillpack sync github:tiechui/my-skillpacks
+skillpack sync github:tiechui/my-skillpacks --target claude
+skillpack sync ./sales-pack-0.2.0.skillpack --target cursor --force
+```
+
+选项：
+
+| 选项 | 说明 |
+|---|---|
+| `-t, --target <target>` | 仅同步指定目标的安装记录。 |
+| `--target-dir <dir>` | 匹配安装记录中的自定义目标目录。 |
+| `--token <token>` | 私有仓库的 GitHub token。 |
+| `--force` | 覆盖安装后被修改过的技能。 |
+
+### `skillpack update [pack]`
+
+将已安装的 GitHub 技能包更新到最新 release（按 SemVer）。省略 `pack` 则检查所有 GitHub 安装。
+
+```bash
+skillpack update
+skillpack update tiechui/sales-pack
+skillpack update sales-pack --force
+```
+
+选项：
+
+| 选项 | 说明 |
+|---|---|
+| `--token <token>` | 私有仓库的 GitHub token。 |
+| `--force` | 不提示即覆盖安装后被修改的技能。 |
+
 ### `skillpack pull [source]`
 
-从 GitHub release 下载并解压到可编辑工作区。
+从 GitHub release 下载并解压到可编辑工作区。别名：`clone`。
 
 ```bash
 skillpack pull github:tiechui/my-skillpacks
@@ -570,24 +692,65 @@ skillpack status
 skillpack publish sales-pack
 ```
 
-### `skillpack status [packDir]`
+### `skillpack open [pack]`
 
-显示已记录的工作区与提供方绑定。
+在系统文件管理器或 VS Code 中打开已记录的工作区。
 
 ```bash
-skillpack status
-skillpack status sales-pack
-skillpack status tiechui/sales-pack
-skillpack status github:tiechui/my-skillpacks
-skillpack status sales-pack --remote
+skillpack open sales-pack
+skillpack open sales-pack --code
 ```
 
 选项：
 
 | 选项 | 说明 |
 |---|---|
-| `--remote` | 同时检查当前 GitHub release 标签是否已在远程存在。 |
+| `--code` | 使用 VS Code 打开（需 `code` 在 PATH 中）。 |
+
+### `skillpack status [packDir]`
+
+显示已记录的工作区、提供方绑定及工作区状态（本地与远程版本对比）。
+
+```bash
+skillpack status
+skillpack status sales-pack
+skillpack status tiechui/sales-pack
+skillpack status github:tiechui/my-skillpacks
+```
+
+选项：
+
+| 选项 | 说明 |
+|---|---|
 | `--token <token>` | GitHub token。默认读取 `GITHUB_TOKEN` 或 `GH_TOKEN`。 |
+
+### `skillpack workspace`
+
+管理工作区。
+
+#### `skillpack workspace list`（别名 `ls`）
+
+与 `skillpack status` 列出全部工作区的输出相同。
+
+```bash
+skillpack workspace list
+skillpack workspace ls --token $GITHUB_TOKEN
+```
+
+#### `skillpack workspace move <pack> <destination>`
+
+在磁盘上移动工作区目录并更新 `state.yaml`。
+
+```bash
+skillpack workspace move sales-pack ~/Projects/sales-pack
+skillpack workspace move sales-pack ./sales-pack --overwrite
+```
+
+选项：
+
+| 选项 | 说明 |
+|---|---|
+| `--overwrite` | 替换非空的目标目录。 |
 
 ### `skillpack bump [packDir] [type]`
 
@@ -616,30 +779,32 @@ skillpack list
 
 ### `skillpack diff [packDir]`
 
-对比技能包与已安装的目标技能目录。
+对比技能包与 Agent 目标目录，或与 SkillPack 安装记录。
 
 ```bash
-skillpack diff
 skillpack diff sales-pack --target claude
-skillpack diff sales-pack --target cursor
-skillpack diff sales-pack --target local --target-dir ./tmp/skills
+skillpack diff sales-pack --installed
+skillpack diff github:tiechui/my-skillpacks --installed --target cursor
 ```
 
 选项：
 
 | 选项 | 说明 |
 |---|---|
-| `-t, --target <target>` | 任意支持的目标 id（见上表），含 `openclaw`、`gemini`、`cline`、`copilot`、`agents`、`goose`、`pi` 等。 |
+| `-t, --target <target>` | 与技能目录对比时指定的 Agent 目标。 |
 | `--target-dir <dir>` | 自定义目标技能目录。 |
+| `--installed` | 与 `installed.yaml` 对比（缺失、过期、本地额外、已修改）。 |
+| `--token <token>` | 来源为 GitHub 时使用的 token。 |
 
 ### `skillpack uninstall [pack]`
 
-从 Agent 目标卸载先前安装的技能包。
+从 Agent 目标卸载先前安装的技能包。别名：`remove`、`rm`。
 
 ```bash
 skillpack uninstall
 skillpack uninstall tiechui/sales-pack
 skillpack uninstall sales-pack --target claude
+skillpack remove sales-pack --force
 ```
 
 选项：
@@ -647,8 +812,17 @@ skillpack uninstall sales-pack --target claude
 | 选项 | 说明 |
 |---|---|
 | `-t, --target <target>` | 仅卸载指定目标。 |
+| `--force` | 跳过确认提示。 |
 
-卸载基于 SkillPack 的安装记录，避免误删无关目录。
+卸载基于 SkillPack 的安装记录，避免误删无关目录；若安装后被修改会给出警告。
+
+### `skillpack doctor`
+
+检查本机 SkillPack 环境：Node 版本、`~/.skillpack` 路径、工作区与安装记录数量、GitHub token 环境变量、各 Agent 技能目录是否存在。
+
+```bash
+skillpack doctor
+```
 
 ## GitHub 发布工作流
 
@@ -668,13 +842,19 @@ Install command: skillpack install github:tiechui/my-skillpacks
 
 ### 发布升级版本
 
-在工作区中编辑文件后执行：
+在工作区中编辑文件后发布：
+
+```bash
+skillpack upgrade sales-pack
+```
+
+`upgrade` 会对比远程最新 release、运行审计、递增版本并发布。也可直接使用 `publish`：
 
 ```bash
 skillpack publish sales-pack
 ```
 
-若 GitHub 上已存在 `sales-pack-v0.1.0`，SkillPack 会提示：
+若 GitHub 上已存在 `sales-pack-v0.1.0`，`publish` 会提示：
 
 ```text
 Remote release tiechui/my-skillpacks@sales-pack-v0.1.0 already exists on GitHub.
@@ -778,14 +958,18 @@ node dist/index.js --help
 
 ## 安全说明
 
-SkillPack 会将文件复制到 Agent 技能目录。在安装不信任来源的技能包之前：
+SkillPack 会将文件复制到 Agent 技能目录。技能中的说明与脚本可能在 Agent 环境中执行。
+
+在安装不信任来源的技能包之前：
 
 ```bash
 skillpack download github:owner/repo
 skillpack audit ./downloaded-pack
 ```
 
-当前审计检查有意保持轻量。请将技能视为可执行行为：在敏感环境中使用前，请检查说明与脚本。
+`install` 与 `update` 还会输出自动化**安全摘要**（类密钥内容、远程安装命令、可执行脚本、文件系统引用等）。`audit` 检查清单有效性、结构与可疑模式；`pack` 与 `upgrade` 在审计报错时会中止。
+
+请将技能视为可执行行为：在敏感环境中使用前，请检查 `SKILL.md` 与附带脚本。
 
 ## 贡献
 

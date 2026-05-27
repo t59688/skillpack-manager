@@ -23,6 +23,8 @@ skillpack add
 skillpack publish
 skillpack install github:owner/repo
 skillpack pull github:owner/repo
+skillpack update
+skillpack sync github:owner/repo
 skillpack publish my-pack
 ```
 
@@ -33,6 +35,7 @@ skillpack publish my-pack
 - [Supported agent targets](#supported-agent-targets)
 - [Requirements](#requirements)
 - [Installation](#installation)
+- [Interactive CLI](#interactive-cli)
   - [Install from npm](#install-from-npm)
   - [Use from source](#use-from-source)
   - [Link locally during development](#link-locally-during-development)
@@ -73,28 +76,29 @@ AI agent skills often start as local folders copied between tools such as Claude
 SkillPack focuses on this workflow:
 
 ```text
-scan local skills -> create a pack -> publish to GitHub -> install anywhere -> pull as workspace -> update and republish
+scan local skills -> create a pack -> publish to GitHub -> install anywhere -> sync or update installs -> pull as workspace -> upgrade and republish
 ```
 
 ## Features
 
-- Interactive prompts for everyday usage.
-- Scriptable commands for CI and power users.
-- Scan common agent skill directories.
-- Create `skillpack.yaml` manifests.
-- Add one or many skills into a pack.
-- Package packs as `.skillpack` artifacts.
-- Publish packs to GitHub Releases.
-- Create a GitHub repo during publish when it does not exist.
-- Install packs from local folders, `.skillpack` files, GitHub repos, or GitHub release URLs.
-- Pull a GitHub release into an editable local workspace.
-- Remember workspace and provider bindings in `~/.skillpack/state.yaml`.
-- Publish upgrades without re-entering the GitHub repo every time.
-- Check remote GitHub release tags before republishing the same version.
-- Bump pack versions with `patch`, `minor`, or `major`.
-- Diff local packs against installed agent directories.
-- Audit packs for structure and basic safety issues.
-- Uninstall only the skills previously installed by SkillPack.
+- **Interactive home menu** — run `skillpack` with no subcommand in a TTY to pick common actions.
+- Interactive prompts for everyday usage; scriptable flags for CI and power users.
+- Scan common agent skill directories (`skillpack scan --agents`).
+- Create `skillpack.yaml` manifests; add skills with checksums; bump SemVer versions.
+- Package packs as `.skillpack` or `.zip` artifacts (`pack` runs audit first and blocks on errors).
+- Publish to local artifacts or **GitHub Releases**; auto-create repos; update GitHub README install sections.
+- **`skillpack upgrade`** — compare workspace content to the latest release, generate release notes, audit, bump, and publish in one flow.
+- Install from local pack dirs, `.skillpack`/`.zip` files, `github:owner/repo`, or GitHub URLs.
+- **Install-time security summary** (secrets, remote scripts, risky patterns) before copying skills.
+- **`sync`** — reconcile an installed pack with a newer release while keeping extra local skills you added.
+- **`update`** — bump all (or one) GitHub-installed packs to the latest release by SemVer.
+- Pull (`clone`) GitHub releases into editable workspaces under `~/.skillpack/workspaces/`.
+- **`open`** workspaces in the file manager or VS Code; **`workspace move`** to relocate them.
+- Remember workspaces in `~/.skillpack/state.yaml`; track installs in `~/.skillpack/installed.yaml`.
+- Workspace status: clean, unpublished changes, behind remote, local only, missing.
+- Diff packs against agent dirs or against SkillPack install records (`diff --installed`).
+- Audit packs for manifest, structure, and safety issues; uninstall/remove only SkillPack-managed skills.
+- **`doctor`** — check Node, config paths, token env vars, and agent skill directories.
 
 ## Supported agent targets
 
@@ -161,6 +165,26 @@ skillpack --help
 npm run dev -- --help
 node dist/index.js --help
 ```
+
+## Interactive CLI
+
+In an interactive terminal (not CI), running `skillpack` with no subcommand opens a home menu:
+
+| Action | Command |
+|---|---|
+| Install a skill pack | `install` |
+| Sync installed packs | `sync` |
+| Update installed packs | `update` |
+| Create a new skill pack | `create` |
+| Publish a pack | `publish` |
+| Pull a pack for editing | `pull` |
+| Open a workspace | `open` |
+| Upgrade a published pack | `upgrade` |
+| Manage workspaces | `workspace list` |
+| Scan installed skills | `scan` |
+| Check environment | `doctor` |
+
+Non-interactive environments print `skillpack --help` instead.
 
 ## Quick start
 
@@ -256,6 +280,13 @@ skillpack install https://github.com/tiechui/my-skillpacks
 skillpack install https://github.com/tiechui/my-skillpacks/releases/tag/sales-pack-v0.1.0
 ```
 
+After install, keep packs current:
+
+```bash
+skillpack update
+skillpack sync github:tiechui/my-skillpacks --target claude
+```
+
 ### 7. Pull, edit, and republish on a new machine
 
 ```bash
@@ -280,13 +311,18 @@ skillpack pull github:tiechui/my-skillpacks --out ./sales-pack
 
 ## The state model
 
-SkillPack stores persistent metadata in:
+SkillPack stores persistent metadata under `~/.skillpack/`:
 
-```text
-~/.skillpack/state.yaml
-```
+| File | Purpose |
+|---|---|
+| `state.yaml` | Remembered workspaces and GitHub provider bindings |
+| `installed.yaml` | Per-target install records (paths, versions, checksums) |
+| `cache/` | Downloaded artifacts and temporary extract dirs |
+| `workspaces/<owner>/<pack>/` | Default editable copies after `pull` |
 
-This file records local workspaces and provider bindings, for example:
+### `state.yaml`
+
+Workspaces and provider bindings, for example:
 
 ```yaml
 schema: https://skillpack.dev/schemas/state.v1.json
@@ -303,6 +339,26 @@ workspaces:
     lastTag: sales-pack-v0.1.0
 ```
 
+`status` and `workspace list` show workspace health (for example `clean`, `unpublished changes`, `behind remote`). For GitHub-backed workspaces, remote latest is checked by default.
+
+### `installed.yaml`
+
+Each install appends a record used by `list`, `sync`, `update`, `diff --installed`, and `uninstall`:
+
+```yaml
+- pack: tiechui/sales-pack
+  version: "0.1.0"
+  target: claude
+  targetDir: /Users/tiechui/.claude/skills
+  installedAt: "2026-05-27T12:00:00.000Z"
+  source: github:tiechui/my-skillpacks@sales-pack-v0.1.0
+  skills:
+    - name: customer-summary
+      path: /Users/tiechui/.claude/skills/customer-summary
+      version: "0.1.0"
+      checksum: sha256:...
+```
+
 Important behavior:
 
 - `~/.skillpack` is not the only place where packs can live.
@@ -310,6 +366,7 @@ Important behavior:
 - `pull` uses `~/.skillpack/workspaces/<owner>/<pack>` by default for convenience.
 - `publish sales-pack` can resolve a remembered workspace by pack name, full pack id, or provider.
 - GitHub release conflicts are checked against the remote repository, not only against local state.
+- `install`, `sync`, and `update` read and update `installed.yaml`; they do not remove skills you added locally outside the pack unless you use `--force` where applicable.
 
 Examples:
 
@@ -430,7 +487,7 @@ skillpack audit sales-pack
 
 ### `skillpack pack [packDir]`
 
-Package a skill pack into a `.skillpack` artifact.
+Package a skill pack into a `.skillpack` artifact. Runs `audit` first; packaging fails if audit reports errors.
 
 ```bash
 skillpack pack ./sales-pack
@@ -493,6 +550,33 @@ skillpack publish sales-pack --overwrite
 skillpack publish sales-pack --to github --repo tiechui/my-skillpacks --dry-run
 ```
 
+### `skillpack upgrade [pack]`
+
+Bump, audit, pack, and publish a GitHub-backed workspace in one step. Compares local content to the latest remote release; skips when nothing changed; can generate release notes.
+
+```bash
+skillpack upgrade sales-pack
+skillpack upgrade sales-pack --bump patch
+skillpack upgrade sales-pack --bump minor --yes
+```
+
+Options:
+
+| Option | Description |
+|---|---|
+| `--bump <type>` | `patch`, `minor`, or `major` (required in non-interactive mode). |
+| `-o, --out <dir>` | Output directory for the packaged artifact. |
+| `--token <token>` | GitHub token. Defaults to `GITHUB_TOKEN` or `GH_TOKEN`. |
+| `--release-name <name>` | GitHub release title. |
+| `--body <markdown>` | Release notes (prompted or auto-generated if omitted). |
+| `--draft` | Create a draft release. |
+| `--prerelease` | Mark as prerelease. |
+| `--overwrite` | Replace an existing release asset with the same file name. |
+| `--dry-run` | Show what would be published without calling GitHub. |
+| `-y, --yes` | Continue when the remote latest tag differs from what the workspace last saw. |
+
+Requires a workspace with `provider.type: github` (from `pull` or `publish --to github`).
+
 ### `skillpack download [source]`
 
 Download a `.skillpack` file from GitHub Releases without installing it.
@@ -545,9 +629,47 @@ Options:
 | `--token <token>` | GitHub token for private repos. Defaults to `GITHUB_TOKEN` or `GH_TOKEN`. |
 | `--overwrite` | Overwrite existing skill directories. |
 
+Shows a security summary before copying skills. Uses manifest `targets` or detected agent directories as install defaults when `--target` is omitted.
+
+### `skillpack sync [source]`
+
+Sync an already installed pack with a newer release. Adds missing skills, updates outdated ones, and **preserves extra local skills** not in the pack. For GitHub sources, resolves the latest release automatically.
+
+```bash
+skillpack sync github:tiechui/my-skillpacks
+skillpack sync github:tiechui/my-skillpacks --target claude
+skillpack sync ./sales-pack-0.2.0.skillpack --target cursor --force
+```
+
+Options:
+
+| Option | Description |
+|---|---|
+| `-t, --target <target>` | Limit to one install target. |
+| `--target-dir <dir>` | Match a custom target directory from the install record. |
+| `--token <token>` | GitHub token for private repos. |
+| `--force` | Overwrite skills modified after install. |
+
+### `skillpack update [pack]`
+
+Update installed GitHub-backed packs to the latest release (by SemVer). Omit `pack` to check all GitHub installs.
+
+```bash
+skillpack update
+skillpack update tiechui/sales-pack
+skillpack update sales-pack --force
+```
+
+Options:
+
+| Option | Description |
+|---|---|
+| `--token <token>` | GitHub token for private repos. |
+| `--force` | Overwrite skills modified after install without prompting. |
+
 ### `skillpack pull [source]`
 
-Download a GitHub release and extract it into an editable workspace.
+Download a GitHub release and extract it into an editable workspace. Alias: `clone`.
 
 ```bash
 skillpack pull github:tiechui/my-skillpacks
@@ -570,24 +692,65 @@ skillpack status
 skillpack publish sales-pack
 ```
 
-### `skillpack status [packDir]`
+### `skillpack open [pack]`
 
-Show remembered workspaces and provider bindings.
+Open a remembered workspace in the system file manager or VS Code.
 
 ```bash
-skillpack status
-skillpack status sales-pack
-skillpack status tiechui/sales-pack
-skillpack status github:tiechui/my-skillpacks
-skillpack status sales-pack --remote
+skillpack open sales-pack
+skillpack open sales-pack --code
 ```
 
 Options:
 
 | Option | Description |
 |---|---|
-| `--remote` | Also check whether the current GitHub release tag exists remotely. |
+| `--code` | Open in VS Code (`code` on PATH). |
+
+### `skillpack status [packDir]`
+
+Show remembered workspaces, provider bindings, and workspace status (local vs remote version).
+
+```bash
+skillpack status
+skillpack status sales-pack
+skillpack status tiechui/sales-pack
+skillpack status github:tiechui/my-skillpacks
+```
+
+Options:
+
+| Option | Description |
+|---|---|
 | `--token <token>` | GitHub token. Defaults to `GITHUB_TOKEN` or `GH_TOKEN`. |
+
+### `skillpack workspace`
+
+Manage remembered workspaces.
+
+#### `skillpack workspace list` (alias `ls`)
+
+Same output as `skillpack status` for all workspaces.
+
+```bash
+skillpack workspace list
+skillpack workspace ls --token $GITHUB_TOKEN
+```
+
+#### `skillpack workspace move <pack> <destination>`
+
+Move a workspace directory on disk and update `state.yaml`.
+
+```bash
+skillpack workspace move sales-pack ~/Projects/sales-pack
+skillpack workspace move sales-pack ./sales-pack --overwrite
+```
+
+Options:
+
+| Option | Description |
+|---|---|
+| `--overwrite` | Replace a non-empty destination directory. |
 
 ### `skillpack bump [packDir] [type]`
 
@@ -616,30 +779,32 @@ skillpack list
 
 ### `skillpack diff [packDir]`
 
-Compare a pack with an installed target skill directory.
+Compare a pack with an agent target directory, or with SkillPack install records.
 
 ```bash
-skillpack diff
 skillpack diff sales-pack --target claude
-skillpack diff sales-pack --target cursor
-skillpack diff sales-pack --target local --target-dir ./tmp/skills
+skillpack diff sales-pack --installed
+skillpack diff github:tiechui/my-skillpacks --installed --target cursor
 ```
 
 Options:
 
 | Option | Description |
 |---|---|
-| `-t, --target <target>` | Any supported target id (see table above), including `openclaw`, `gemini`, `cline`, `copilot`, `agents`, `goose`, and `pi`. |
+| `-t, --target <target>` | Agent target when comparing against a skill directory. |
 | `--target-dir <dir>` | Custom target skill directory. |
+| `--installed` | Compare the pack source against `installed.yaml` (missing, outdated, extra local, modified). |
+| `--token <token>` | GitHub token when the source is a GitHub ref. |
 
 ### `skillpack uninstall [pack]`
 
-Uninstall a previously installed pack from an agent target.
+Uninstall a previously installed pack from an agent target. Aliases: `remove`, `rm`.
 
 ```bash
 skillpack uninstall
 skillpack uninstall tiechui/sales-pack
 skillpack uninstall sales-pack --target claude
+skillpack remove sales-pack --force
 ```
 
 Options:
@@ -647,8 +812,17 @@ Options:
 | Option | Description |
 |---|---|
 | `-t, --target <target>` | Limit uninstall to one target. |
+| `--force` | Skip confirmation prompts. |
 
-Uninstall uses SkillPack install records, so it avoids deleting unrelated folders.
+Uninstall uses SkillPack install records, so it avoids deleting unrelated folders. Warns when skills were modified after install.
+
+### `skillpack doctor`
+
+Check the local SkillPack environment: Node.js version, `~/.skillpack` paths, workspace and install counts, GitHub token env vars, and whether each agent skills directory exists.
+
+```bash
+skillpack doctor
+```
 
 ## GitHub publishing workflow
 
@@ -668,13 +842,19 @@ Install command: skillpack install github:tiechui/my-skillpacks
 
 ### Publish an upgrade
 
-Edit files in the workspace, then run:
+Edit files in the workspace, then publish:
+
+```bash
+skillpack upgrade sales-pack
+```
+
+`upgrade` compares content to the latest GitHub release, runs audit, bumps the version, and publishes. You can also use `publish` directly:
 
 ```bash
 skillpack publish sales-pack
 ```
 
-If `sales-pack-v0.1.0` already exists on GitHub, SkillPack prompts:
+If `sales-pack-v0.1.0` already exists on GitHub, `publish` prompts:
 
 ```text
 Remote release tiechui/my-skillpacks@sales-pack-v0.1.0 already exists on GitHub.
@@ -778,14 +958,18 @@ node dist/index.js --help
 
 ## Safety notes
 
-SkillPack can copy files into agent skill directories. Before installing packs from people you do not trust:
+SkillPack can copy files into agent skill directories. Skills may contain instructions and scripts that run in your agent environment.
+
+Before installing packs from people you do not trust:
 
 ```bash
 skillpack download github:owner/repo
 skillpack audit ./downloaded-pack
 ```
 
-Current audit checks are intentionally lightweight. Treat skills as executable behavior: inspect instructions and scripts before using them in sensitive environments.
+`install` and `update` also print an automated **security summary** (secret-like values, remote install commands, executable scripts, filesystem references). `audit` checks manifest validity, structure, and suspicious patterns; `pack` and `upgrade` block on audit errors.
+
+Treat skills as executable behavior: inspect `SKILL.md` and bundled scripts before using them in sensitive environments.
 
 ## Contributing
 
