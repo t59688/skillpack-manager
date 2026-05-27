@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { select } from "@inquirer/prompts";
 import chalk from "chalk";
 import { Command } from "commander";
 import { addCommand } from "./commands/add.js";
@@ -6,6 +7,7 @@ import { auditCommand } from "./commands/audit.js";
 import { bumpCommand } from "./commands/bump.js";
 import { createCommand } from "./commands/create.js";
 import { diffCommand } from "./commands/diff.js";
+import { doctorCommand } from "./commands/doctor.js";
 import { downloadCommand } from "./commands/download.js";
 import { installCommand } from "./commands/install.js";
 import { listCommand } from "./commands/list.js";
@@ -15,30 +17,71 @@ import { pullCommand } from "./commands/pull.js";
 import { scanCommand } from "./commands/scan.js";
 import { statusCommand } from "./commands/status.js";
 import { uninstallCommand } from "./commands/uninstall.js";
+import { isInteractive } from "./utils/prompts.js";
 
-const program = new Command();
+type ProgramOptions = {
+  homeMenu: boolean;
+};
 
-program
-  .name("skillpack")
-  .description("Package, share, install, audit, and sync AI agent skill packs.")
-  .version("0.1.1");
+type HomeAction = "install" | "create" | "publish" | "pull" | "status" | "scan" | "doctor";
 
-program.addCommand(scanCommand());
-program.addCommand(createCommand());
-program.addCommand(bumpCommand());
-program.addCommand(addCommand());
-program.addCommand(packCommand());
-program.addCommand(publishCommand());
-program.addCommand(pullCommand());
-program.addCommand(downloadCommand());
-program.addCommand(installCommand());
-program.addCommand(listCommand());
-program.addCommand(uninstallCommand());
-program.addCommand(statusCommand());
-program.addCommand(diffCommand());
-program.addCommand(auditCommand());
+async function promptHomeAction(): Promise<HomeAction> {
+  return select({
+    message: "What do you want to do?",
+    choices: [
+      { name: "1. Install a skill pack", value: "install" as const },
+      { name: "2. Create a new skill pack", value: "create" as const },
+      { name: "3. Publish a pack", value: "publish" as const },
+      { name: "4. Pull a pack for editing", value: "pull" as const },
+      { name: "5. Manage my workspaces", value: "status" as const },
+      { name: "6. Scan installed skills", value: "scan" as const },
+      { name: "7. Check environment", value: "doctor" as const },
+    ],
+  });
+}
 
-program.showHelpAfterError();
+function buildProgram(options: ProgramOptions): Command {
+  const program = new Command();
+
+  program
+    .name("skillpack")
+    .description("Package, share, install, audit, and sync AI agent skill packs.")
+    .version("0.1.1");
+
+  program.addCommand(scanCommand());
+  program.addCommand(createCommand());
+  program.addCommand(bumpCommand());
+  program.addCommand(addCommand());
+  program.addCommand(packCommand());
+  program.addCommand(publishCommand());
+  program.addCommand(pullCommand());
+  program.addCommand(downloadCommand());
+  program.addCommand(installCommand());
+  program.addCommand(listCommand());
+  program.addCommand(uninstallCommand());
+  program.addCommand(statusCommand());
+  program.addCommand(diffCommand());
+  program.addCommand(auditCommand());
+  program.addCommand(doctorCommand());
+
+  if (options.homeMenu) {
+    program.action(async () => {
+      if (!isInteractive()) {
+        program.outputHelp();
+        return;
+      }
+
+      const action = await promptHomeAction();
+      await buildProgram({ homeMenu: false }).parseAsync([...process.argv.slice(0, 2), action]);
+    });
+  }
+
+  program.showHelpAfterError();
+
+  return program;
+}
+
+const program = buildProgram({ homeMenu: true });
 
 program.parseAsync(process.argv).catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
