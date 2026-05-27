@@ -94,6 +94,7 @@ export async function installPack(source: string, options: InstallOptions): Prom
     installedSkills.push({
       name: skill.name,
       path: targetSkillDir,
+      version: skill.version ?? manifest.version,
       checksum: await sha256Directory(targetSkillDir),
     });
   }

@@ -55,6 +55,7 @@ export const InstalledPackSchema = z.object({
     z.object({
       name: z.string(),
       path: z.string(),
+      version: z.string(),
       checksum: z.string(),
     }),
   ),
