@@ -3,7 +3,7 @@ import fs from "fs-extra";
 import { select } from "@inquirer/prompts";
 import ora from "ora";
 import { parseGitHubRemoteUrl } from "./github-remote.js";
-import { promptGitHubTokenForPrivateRepo, resolveGitHubTokenFromEnv } from "./github-auth.js";
+import { isGitHubAuthStatus, promptGitHubTokenForPrivateRepo, promptUpdatedGitHubToken, resolveGitHubTokenFromEnv } from "./github-auth.js";
 import { resolveGitHubRepoInput } from "./github-repo.js";
 import { cachePath } from "./registry.js";
 import { ensureDir, expandHome } from "../utils/fs.js";
@@ -101,13 +101,35 @@ async function readJson<T>(response: Response): Promise<T> {
   return JSON.parse(text) as T;
 }
 
+async function githubFetch(
+  url: string,
+  options: RequestInit & { token?: string; context?: string },
+): Promise<Response> {
+  const { token, headers, context, ...rest } = options;
+  const authToken = resolveToken(token);
+
+  const request = (nextToken: string | undefined) =>
+    fetch(url, {
+      ...rest,
+      headers: {
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        ...(nextToken ? { Authorization: `Bearer ${nextToken}` } : {}),
+        ...headers,
+      },
+    });
+
+  const response = await request(authToken);
+  if (!authToken || !isGitHubAuthStatus(response.status)) return response;
+
+  const nextToken = await promptUpdatedGitHubToken(authToken, context);
+  return request(nextToken);
+}
+
 async function githubGet<T>(url: string, token: string | undefined, context: string): Promise<T> {
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+  const response = await githubFetch(url, {
+    token,
+    context,
   });
 
   if (!response.ok) {
@@ -253,12 +275,12 @@ async function resolveRelease(
 async function downloadReleaseAssetViaApi(repo: string, assetId: number, destPath: string, token: string): Promise<void> {
   let url: string | null = `${API_BASE}/repos/${repo}/releases/assets/${assetId}`;
   for (let hop = 0; hop < 6 && url; hop++) {
-    const response = await fetch(url, {
+    const response = await githubFetch(url, {
       redirect: "manual",
+      token,
+      context: `download release asset from ${repo}`,
       headers: {
         Accept: "application/octet-stream",
-        Authorization: `Bearer ${token}`,
-        "X-GitHub-Api-Version": "2022-11-28",
       },
     });
 

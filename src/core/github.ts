@@ -1,6 +1,6 @@
 import fs from "fs-extra";
 import path from "node:path";
-import { resolveGitHubTokenFromEnv } from "./github-auth.js";
+import { isGitHubAuthStatus, promptUpdatedGitHubToken, resolveGitHubTokenFromEnv } from "./github-auth.js";
 import { SkillPackError } from "../utils/errors.js";
 
 export type GitHubPublisherOptions = {
@@ -100,6 +100,31 @@ async function readJson<T>(response: Response): Promise<T> {
   return JSON.parse(text) as T;
 }
 
+async function githubFetch(
+  url: string,
+  options: RequestInit & { token?: string; context?: string },
+): Promise<Response> {
+  const { token, headers, context, ...rest } = options;
+  const authToken = resolveToken(token);
+
+  const request = (nextToken: string | undefined) =>
+    fetch(url, {
+      ...rest,
+      headers: {
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        ...(nextToken ? { Authorization: `Bearer ${nextToken}` } : {}),
+        ...headers,
+      },
+    });
+
+  const response = await request(authToken);
+  if (!authToken || !isGitHubAuthStatus(response.status)) return response;
+
+  const nextToken = await promptUpdatedGitHubToken(authToken, context);
+  return request(nextToken);
+}
+
 function formatGitHubApiError(status: number, statusText: string, payload?: GitHubErrorPayload, context?: string): string {
   let message = `${status} ${statusText}`;
   if (payload?.message) {
@@ -122,16 +147,9 @@ async function githubRequest<T>(
   url: string,
   options: RequestInit & { token?: string; context?: string; allowStatuses?: number[] },
 ): Promise<T> {
-  const { token, headers, context, allowStatuses, ...rest } = options;
-  const response = await fetch(url, {
-    ...rest,
-    headers: {
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers,
-    },
-  });
+  const { allowStatuses, ...requestOptions } = options;
+  const response = await githubFetch(url, requestOptions);
+  const context = requestOptions.context;
 
   if (!response.ok && !allowStatuses?.includes(response.status)) {
     let payload: GitHubErrorPayload | undefined;
@@ -156,12 +174,9 @@ export async function getGitHubRepository(
   token: string,
   apiBaseUrl = DEFAULT_API_BASE_URL,
 ): Promise<GitHubRepository | undefined> {
-  const response = await fetch(`${apiBaseUrl}/repos/${repo}`, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
+  const response = await githubFetch(`${apiBaseUrl}/repos/${repo}`, {
+    token,
+    context: `access repository ${repo}`,
   });
 
   if (response.status === 404) {
@@ -255,19 +270,25 @@ export async function ensureGitHubRepository(
 }
 
 async function repositoryHasCommits(repo: string, token: string, apiBaseUrl: string): Promise<boolean> {
-  const response = await fetch(`${apiBaseUrl}/repos/${repo}/commits?per_page=1`, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
+  const response = await githubFetch(`${apiBaseUrl}/repos/${repo}/commits?per_page=1`, {
+    token,
+    context: `check commits for ${repo}`,
   });
 
   if (response.status === 404 || response.status === 409) {
     return false;
   }
   if (!response.ok) {
-    return true;
+    let payload: GitHubErrorPayload | undefined;
+    try {
+      payload = await readJson<GitHubErrorPayload>(response);
+    } catch {
+      // Keep the HTTP status message when the response body is not JSON.
+    }
+    throw new SkillPackError(
+      formatGitHubApiError(response.status, response.statusText, payload, `check commits for ${repo}`),
+      "GITHUB_API_FAILED",
+    );
   }
 
   const commits = await readJson<unknown[]>(response);
@@ -312,12 +333,9 @@ async function getGitHubReadme(
   branch: string,
   apiBaseUrl = DEFAULT_API_BASE_URL,
 ): Promise<GitHubContentFile | undefined> {
-  const response = await fetch(`${apiBaseUrl}/repos/${repo}/contents/README.md?ref=${encodeURIComponent(branch)}`, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
+  const response = await githubFetch(`${apiBaseUrl}/repos/${repo}/contents/README.md?ref=${encodeURIComponent(branch)}`, {
+    token,
+    context: `get README for ${repo}`,
   });
 
   if (response.status === 404) return undefined;
@@ -368,12 +386,9 @@ export async function upsertGitHubReadme(options: {
 }
 
 async function getReleaseByTag(apiBaseUrl: string, repo: string, tag: string, token: string): Promise<GitHubRelease | undefined> {
-  const response = await fetch(`${apiBaseUrl}/repos/${repo}/releases/tags/${encodeURIComponent(tag)}`, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
+  const response = await githubFetch(`${apiBaseUrl}/repos/${repo}/releases/tags/${encodeURIComponent(tag)}`, {
+    token,
+    context: `get release ${tag}`,
   });
 
   if (response.status === 404) {
@@ -464,11 +479,8 @@ export async function getGitHubReleaseByTag(
   parseGitHubRepo(repo);
   const authToken = resolveToken(token);
   if (!authToken) {
-    const response = await fetch(`${apiBaseUrl}/repos/${repo}/releases/tags/${encodeURIComponent(tag)}`, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
+    const response = await githubFetch(`${apiBaseUrl}/repos/${repo}/releases/tags/${encodeURIComponent(tag)}`, {
+      context: `get release ${tag}`,
     });
     if (response.status === 404) return undefined;
     if (!response.ok) {

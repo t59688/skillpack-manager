@@ -78,6 +78,18 @@ describe("workspace state", () => {
     expect(resolveGitHubTokenFromEnv("explicit-token")).toBe("explicit-token");
   });
 
+  it("maps a rejected GitHub token to the replacement token during the current process", async () => {
+    const { loadGitHubToken } = await import("../src/core/state.js");
+    const { resolveGitHubTokenFromEnv, saveAndUseGitHubToken, setSavedGitHubToken } = await import("../src/core/github-auth.js");
+
+    setSavedGitHubToken("old-token");
+    await saveAndUseGitHubToken("new-token", "old-token");
+
+    expect(resolveGitHubTokenFromEnv("old-token")).toBe("new-token");
+    expect(resolveGitHubTokenFromEnv()).toBe("new-token");
+    await expect(loadGitHubToken()).resolves.toBe("new-token");
+  });
+
   it("updates a workspace local path in persisted state", async () => {
     const { loadState, updateWorkspaceLocalPath, upsertWorkspace } = await import("../src/core/state.js");
     const originalPath = path.join(homeDir, "workspaces", "tf", "sales-pack");

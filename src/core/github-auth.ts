@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { select } from "@inquirer/prompts";
-import { loadGitHubToken } from "./state.js";
+import { loadGitHubToken, saveGitHubToken } from "./state.js";
 import { openUrl } from "../utils/browser.js";
 import { SkillPackError } from "../utils/errors.js";
 import { isInteractive } from "../utils/prompts.js";
@@ -11,6 +11,7 @@ export const GITHUB_PAT_CREATE_URL =
   "https://github.com/settings/tokens/new?description=skillpack-cli&scopes=repo";
 
 let savedGitHubToken: string | undefined;
+const refreshedGitHubTokens = new Map<string, string>();
 
 export async function initializeSavedGitHubToken(): Promise<void> {
   savedGitHubToken = await loadGitHubToken();
@@ -18,6 +19,7 @@ export async function initializeSavedGitHubToken(): Promise<void> {
 
 export function setSavedGitHubToken(token: string | undefined): void {
   savedGitHubToken = token;
+  if (!token) refreshedGitHubTokens.clear();
 }
 
 export function printGitHubTokenPermissionHelp(): void {
@@ -47,7 +49,71 @@ export async function promptGitHubTokenViaBrowser(): Promise<string> {
 }
 
 export function resolveGitHubTokenFromEnv(explicit?: string): string | undefined {
-  return explicit ?? process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? savedGitHubToken;
+  const token = explicit ?? process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? savedGitHubToken;
+  return token ? (refreshedGitHubTokens.get(token) ?? token) : undefined;
+}
+
+export function isGitHubAuthStatus(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
+export function isGitHubAuthError(error: unknown): boolean {
+  return (
+    error instanceof SkillPackError &&
+    (error.code === "GITHUB_AUTH_FAILED" ||
+      (error.code === "GITHUB_API_FAILED" && /\b(401|403)\b|bad credentials|unauthorized/i.test(error.message)))
+  );
+}
+
+export async function saveAndUseGitHubToken(token: string, previousToken?: string): Promise<void> {
+  await saveGitHubToken(token);
+  savedGitHubToken = token;
+  if (previousToken && previousToken !== token) refreshedGitHubTokens.set(previousToken, token);
+}
+
+export async function promptUpdatedGitHubToken(previousToken?: string, context?: string): Promise<string> {
+  if (!isInteractive()) {
+    throw new SkillPackError(
+      "GitHub authentication failed. Re-run with --token or set GITHUB_TOKEN/GH_TOKEN to a valid token.",
+      "GITHUB_AUTH_FAILED",
+    );
+  }
+
+  console.log(chalk.yellow("GitHub rejected the saved token. Enter a new token to continue."));
+  if (context) console.log(chalk.dim(context));
+  printGitHubTokenPermissionHelp();
+
+  const action = await select({
+    message: "How do you want to update the GitHub token?",
+    choices: [
+      { name: "Paste new token now (input will be masked)", value: "enter" as const },
+      { name: "Open browser to create token", value: "browser" as const },
+      { name: "Cancel", value: "cancel" as const },
+    ],
+  });
+
+  if (action === "cancel") throw new SkillPackError("Cancelled by user.", "GITHUB_TOKEN_REQUIRED");
+  const token = action === "browser" ? await promptGitHubTokenViaBrowser() : await promptSecret("GitHub personal access token");
+  if (!token) throw new SkillPackError("No token provided.", "GITHUB_TOKEN_REQUIRED");
+
+  await saveAndUseGitHubToken(token, previousToken);
+  console.log(chalk.green("GitHub token updated locally."));
+  return token;
+}
+
+export async function withGitHubAuthRetry<T>(
+  token: string | undefined,
+  context: string,
+  operation: (token: string | undefined) => Promise<T>,
+): Promise<T> {
+  const authToken = resolveGitHubTokenFromEnv(token);
+  try {
+    return await operation(authToken);
+  } catch (error) {
+    if (!authToken || !isGitHubAuthError(error)) throw error;
+    const nextToken = await promptUpdatedGitHubToken(authToken, context);
+    return operation(nextToken);
+  }
 }
 
 /** Prompt for a token when installing from a private GitHub repository. */
