@@ -9,6 +9,8 @@ export type GitHubPublisherOptions = {
   releaseName?: string;
   body?: string;
   artifactPath: string;
+  readmeContent?: string;
+  readmeCommitMessage?: string;
   draft?: boolean;
   prerelease?: boolean;
   overwrite?: boolean;
@@ -16,6 +18,7 @@ export type GitHubPublisherOptions = {
   ensureRepo?: EnsureGitHubRepoOptions;
   onRepoCreated?: (repository: GitHubRepository) => void;
   onRepoInitialized?: () => void;
+  onReadmeUpdated?: () => void;
   apiBaseUrl?: string;
   uploadsBaseUrl?: string;
 };
@@ -55,6 +58,13 @@ type GitHubRepository = {
   html_url: string;
   private: boolean;
   default_branch?: string | null;
+};
+
+type GitHubContentFile = {
+  type: string;
+  sha: string;
+  content?: string;
+  encoding?: string;
 };
 
 export type EnsureGitHubRepoOptions = {
@@ -295,6 +305,67 @@ export async function ensureRepositoryInitialized(
   return true;
 }
 
+async function getGitHubReadme(
+  repo: string,
+  token: string,
+  branch: string,
+  apiBaseUrl = DEFAULT_API_BASE_URL,
+): Promise<GitHubContentFile | undefined> {
+  const response = await fetch(`${apiBaseUrl}/repos/${repo}/contents/README.md?ref=${encodeURIComponent(branch)}`, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+
+  if (response.status === 404) return undefined;
+  if (!response.ok) {
+    let payload: GitHubErrorPayload | undefined;
+    try {
+      payload = await readJson<GitHubErrorPayload>(response);
+    } catch {
+      // ignore
+    }
+    throw new SkillPackError(formatGitHubApiError(response.status, response.statusText, payload, `get README for ${repo}`), "GITHUB_API_FAILED");
+  }
+
+  return readJson<GitHubContentFile>(response);
+}
+
+function decodeGitHubContent(file: GitHubContentFile | undefined): string | undefined {
+  if (!file?.content || file.encoding !== "base64") return undefined;
+  return Buffer.from(file.content.replace(/\s/g, ""), "base64").toString("utf8");
+}
+
+export async function upsertGitHubReadme(options: {
+  repo: string;
+  token: string;
+  branch: string;
+  content: string;
+  message?: string;
+  apiBaseUrl?: string;
+}): Promise<boolean> {
+  parseGitHubRepo(options.repo);
+  const apiBaseUrl = options.apiBaseUrl ?? DEFAULT_API_BASE_URL;
+  const existing = await getGitHubReadme(options.repo, options.token, options.branch, apiBaseUrl);
+  if (decodeGitHubContent(existing) === options.content) return false;
+
+  await githubRequest(`${apiBaseUrl}/repos/${options.repo}/contents/README.md`, {
+    method: "PUT",
+    token: options.token,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: options.message ?? "Update SkillPack README",
+      content: Buffer.from(options.content, "utf8").toString("base64"),
+      branch: options.branch,
+      ...(existing?.sha ? { sha: existing.sha } : {}),
+    }),
+    context: `update README for ${options.repo}`,
+  });
+  return true;
+}
+
 async function getReleaseByTag(apiBaseUrl: string, repo: string, tag: string, token: string): Promise<GitHubRelease | undefined> {
   const response = await fetch(`${apiBaseUrl}/repos/${repo}/releases/tags/${encodeURIComponent(tag)}`, {
     headers: {
@@ -445,6 +516,20 @@ export async function publishToGitHub(options: GitHubPublisherOptions): Promise<
 
   const repoMeta = (await getGitHubRepository(options.repo, token, apiBaseUrl)) ?? ensured.repository;
   const targetCommitish = repoMeta.default_branch ?? "main";
+
+  if (options.readmeContent) {
+    const updated = await upsertGitHubReadme({
+      repo: options.repo,
+      token,
+      branch: targetCommitish,
+      content: options.readmeContent,
+      message: options.readmeCommitMessage,
+      apiBaseUrl,
+    });
+    if (updated) {
+      options.onReadmeUpdated?.();
+    }
+  }
 
   let release = await getReleaseByTag(apiBaseUrl, options.repo, options.tag, token);
   if (!release) {

@@ -7,6 +7,7 @@ import { resolveGitHubRepoInput } from "../core/github-repo.js";
 import { inferGitHubRepoFromGit } from "../core/github-remote.js";
 import { loadManifest, saveManifest } from "../core/manifest.js";
 import { packSkillPack } from "../core/packer.js";
+import { updateSkillPackReadme } from "../core/readme.js";
 import { findWorkspaceByPath, upsertWorkspace } from "../core/state.js";
 import { bumpVersion, VersionBump } from "../core/version.js";
 import { resolvePackDir } from "../core/workspace-resolver.js";
@@ -210,6 +211,8 @@ export async function publishPack(packDirArg: string | undefined, options: Publi
   const repo = await resolveGitHubRepo(packDir, initialManifest, options.repo, token, remembered?.provider?.repo);
   const repoVisibility = resolveRepoVisibilityFlag(initialManifest, options);
   const { manifest, tag } = await resolveVersionAndTag(packDir, initialManifest, repo, token, options);
+  const readme = await updateSkillPackReadme(packDir, manifest, repo);
+  console.log(chalk.dim(`${readme.changed ? "Updated" : "Checked"} README.md with install command and ${readme.skillCount} skill(s).`));
   const artifact = await packSkillPack(packDir, options.out ?? "dist");
   const releaseName = options.releaseName ?? `${manifest.displayName ?? manifest.name} ${manifest.version}`;
   const defaultBody = `SkillPack release for ${manifest.owner ? `${manifest.owner}/` : ""}${manifest.name}@${manifest.version}.`;
@@ -240,6 +243,8 @@ export async function publishPack(packDirArg: string | undefined, options: Publi
     releaseName,
     body,
     artifactPath: artifact,
+    readmeContent: readme.content,
+    readmeCommitMessage: `Update SkillPack README for ${manifest.version}`,
     draft: options.draft,
     prerelease: options.prerelease,
     overwrite: options.overwrite,
@@ -247,6 +252,7 @@ export async function publishPack(packDirArg: string | undefined, options: Publi
     ensureRepo,
     onRepoCreated: (repository) => console.log(chalk.green(`Created repository ${repository.full_name} (${repository.html_url})`)),
     onRepoInitialized: () => console.log(chalk.dim("Initialized empty repository with README.md (required before creating a Release).")),
+    onReadmeUpdated: () => console.log(chalk.dim("Updated GitHub README.md with install instructions.")),
   });
 
   if (options.state !== false) {
