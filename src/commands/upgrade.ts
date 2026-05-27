@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import chalk from "chalk";
-import { select } from "@inquirer/prompts";
+import { editor, select } from "@inquirer/prompts";
 import { Command } from "commander";
 import fg from "fast-glob";
 import fs from "fs-extra";
@@ -9,6 +9,7 @@ import { auditPack } from "../core/audit.js";
 import { downloadSkillPackFromGitHub } from "../core/github-install.js";
 import { loadManifest, saveManifest } from "../core/manifest.js";
 import { extractSkillPack } from "../core/packer.js";
+import { generateReleaseNotes } from "../core/release-notes.js";
 import { cachePath } from "../core/registry.js";
 import { findWorkspaceByPath } from "../core/state.js";
 import { bumpVersion, VersionBump } from "../core/version.js";
@@ -92,15 +93,14 @@ async function packContentFingerprint(packDir: string): Promise<string> {
   return `sha256:${hash.digest("hex")}`;
 }
 
-async function artifactContentFingerprint(artifactPath: string): Promise<string> {
+async function extractArtifactForUpgradeCompare(artifactPath: string): Promise<{ packDir: string; cleanup: () => Promise<void> }> {
   const tempDir = cachePath("upgrade-compare", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   await fs.remove(tempDir);
-  try {
-    await extractSkillPack(artifactPath, tempDir);
-    return await packContentFingerprint(tempDir);
-  } finally {
-    await fs.remove(tempDir);
-  }
+  await extractSkillPack(artifactPath, tempDir);
+  return {
+    packDir: tempDir,
+    cleanup: async () => fs.remove(tempDir),
+  };
 }
 
 function formatIssue(issue: AuditIssue): string {
@@ -144,6 +144,48 @@ async function promptBump(currentVersion: string): Promise<VersionBump> {
       { name: `major - breaking change (${currentVersion} -> ${bumpVersion(currentVersion, "major")})`, value: "major" as const },
     ],
   });
+}
+
+async function resolveReleaseNotesBody(
+  previousPackDir: string,
+  currentPackDir: string,
+  explicitBody: string | undefined,
+  autoAccept: boolean | undefined,
+): Promise<string | undefined> {
+  if (explicitBody) return explicitBody;
+
+  const notes = await generateReleaseNotes(previousPackDir, currentPackDir);
+  console.log(chalk.bold("Generated release notes:"));
+  console.log(notes.body);
+  console.log("");
+
+  if (!isInteractive() || autoAccept) return notes.body;
+
+  const action = await select({
+    message: "Use these release notes?",
+    choices: [
+      { name: "Use generated notes", value: "use" as const },
+      { name: "Edit before publishing", value: "edit" as const },
+      { name: "Cancel upgrade", value: "cancel" as const },
+    ],
+  });
+
+  if (action === "cancel") {
+    throw new SkillPackError("Upgrade cancelled before publishing release notes.", "UPGRADE_CANCELLED");
+  }
+  if (action === "use") return notes.body;
+
+  const edited = await editor({
+    message: "Edit release notes",
+    default: notes.body,
+    postfix: ".md",
+    waitForUserInput: true,
+  });
+  const trimmed = edited.trim();
+  if (!trimmed) {
+    throw new SkillPackError("Release notes cannot be empty.", "INVALID_RELEASE_NOTES");
+  }
+  return trimmed;
 }
 
 export function upgradeCommand(): Command {
@@ -198,31 +240,36 @@ export function upgradeCommand(): Command {
         outputDir: cachePath("upgrade-baseline", repo.replaceAll("/", "-")),
       });
       console.log(`Remote latest: ${latest.tag}`);
+      const baseline = await extractArtifactForUpgradeCompare(latest.artifactPath);
 
-      if (workspace.lastTag && latest.tag !== workspace.lastTag && !options.yes) {
-        const message = `Remote latest is ${latest.tag}, but this workspace last saw ${workspace.lastTag}. Continue from this workspace?`;
-        const shouldContinue = isInteractive() ? await promptConfirm(message, false) : false;
-        if (!shouldContinue) {
-          throw new SkillPackError("Upgrade cancelled because the workspace is behind the remote latest release.", "WORKSPACE_BEHIND_REMOTE");
+      try {
+        if (workspace.lastTag && latest.tag !== workspace.lastTag && !options.yes) {
+          const message = `Remote latest is ${latest.tag}, but this workspace last saw ${workspace.lastTag}. Continue from this workspace?`;
+          const shouldContinue = isInteractive() ? await promptConfirm(message, false) : false;
+          if (!shouldContinue) {
+            throw new SkillPackError("Upgrade cancelled because the workspace is behind the remote latest release.", "WORKSPACE_BEHIND_REMOTE");
+          }
         }
-      }
 
-      const [currentFingerprint, remoteFingerprint] = await Promise.all([
-        packContentFingerprint(packDir),
-        artifactContentFingerprint(latest.artifactPath),
-      ]);
-      if (currentFingerprint === remoteFingerprint) {
-        console.log(chalk.yellow("No local skill pack content changes found since the latest remote release. Nothing to upgrade."));
-        return;
-      }
+        const [currentFingerprint, remoteFingerprint] = await Promise.all([packContentFingerprint(packDir), packContentFingerprint(baseline.packDir)]);
+        if (currentFingerprint === remoteFingerprint) {
+          console.log(chalk.yellow("No local skill pack content changes found since the latest remote release. Nothing to upgrade."));
+          return;
+        }
 
-      const bump = parseBump(options.bump) ?? (isInteractive() ? await promptBump(manifest.version) : undefined);
-      if (!bump) {
-        throw new SkillPackError("Upgrade type is required in non-interactive mode. Re-run with --bump patch|minor|major.", "INVALID_BUMP");
-      }
+        const body = await resolveReleaseNotesBody(baseline.packDir, packDir, options.body, options.yes);
+        publishOptions.body = body;
 
-      await auditOrThrow(packDir);
-      await refreshSkillChecksums(packDir, await loadManifest(packDir));
-      await publishPack(packDir, { ...publishOptions, bump });
+        const bump = parseBump(options.bump) ?? (isInteractive() ? await promptBump(manifest.version) : undefined);
+        if (!bump) {
+          throw new SkillPackError("Upgrade type is required in non-interactive mode. Re-run with --bump patch|minor|major.", "INVALID_BUMP");
+        }
+
+        await auditOrThrow(packDir);
+        await refreshSkillChecksums(packDir, await loadManifest(packDir));
+        await publishPack(packDir, { ...publishOptions, bump });
+      } finally {
+        await baseline.cleanup();
+      }
     });
 }
