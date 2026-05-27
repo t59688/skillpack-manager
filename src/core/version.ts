@@ -36,3 +36,7 @@ export function compareVersions(left: string, right: string): number {
   }
   return 0;
 }
+
+export function versionFromTag(tag: string): string | undefined {
+  return tag.match(/(\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?)$/)?.[1];
+}

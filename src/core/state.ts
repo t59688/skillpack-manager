@@ -4,6 +4,7 @@ import fs from "fs-extra";
 import YAML from "yaml";
 import { z } from "zod";
 import { SkillPackManifest } from "../types/schema.js";
+import { SkillPackError } from "../utils/errors.js";
 import { ensureDir, expandHome, readText, writeText } from "../utils/fs.js";
 
 const ProviderSchema = z.object({
@@ -96,6 +97,23 @@ export async function findWorkspaceByProvider(provider: Provider): Promise<Works
 export async function findWorkspaceByPack(pack: string): Promise<Workspace | undefined> {
   const state = await loadState();
   return state.workspaces.find((workspace) => workspace.pack === pack || workspace.id === pack);
+}
+
+export async function updateWorkspaceLocalPath(workspaceId: string, localPath: string): Promise<Workspace> {
+  const state = await loadState();
+  const existingIndex = state.workspaces.findIndex((workspace) => workspace.id === workspaceId);
+  if (existingIndex < 0) {
+    throw new SkillPackError(`Workspace not found in state: ${workspaceId}`, "WORKSPACE_NOT_FOUND");
+  }
+
+  const next: Workspace = {
+    ...state.workspaces[existingIndex],
+    localPath: normalizeLocalPath(localPath),
+    updatedAt: now(),
+  };
+  state.workspaces[existingIndex] = next;
+  await saveState(state);
+  return next;
 }
 
 export async function upsertWorkspace(input: {

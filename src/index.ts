@@ -20,13 +20,24 @@ import { statusCommand } from "./commands/status.js";
 import { removeCommand, uninstallCommand } from "./commands/uninstall.js";
 import { updateCommand } from "./commands/update.js";
 import { upgradeCommand } from "./commands/upgrade.js";
+import { workspaceCommand } from "./commands/workspace.js";
 import { isInteractive } from "./utils/prompts.js";
 
 type ProgramOptions = {
   homeMenu: boolean;
 };
 
-type HomeAction = "install" | "update" | "create" | "publish" | "pull" | "open" | "status" | "scan" | "doctor" | "upgrade";
+type HomeAction =
+  | "install"
+  | "update"
+  | "create"
+  | "publish"
+  | "pull"
+  | "open"
+  | "workspace"
+  | "scan"
+  | "doctor"
+  | "upgrade";
 
 async function promptHomeAction(): Promise<HomeAction> {
   return select({
@@ -39,7 +50,7 @@ async function promptHomeAction(): Promise<HomeAction> {
       { name: "5. Pull a pack for editing", value: "pull" as const },
       { name: "6. Open a workspace", value: "open" as const },
       { name: "7. Upgrade a published pack", value: "upgrade" as const },
-      { name: "8. Manage my workspaces", value: "status" as const },
+      { name: "8. Manage my workspaces", value: "workspace" as const },
       { name: "9. Scan installed skills", value: "scan" as const },
       { name: "10. Check environment", value: "doctor" as const },
     ],
@@ -70,6 +81,7 @@ function buildProgram(options: ProgramOptions): Command {
   program.addCommand(uninstallCommand());
   program.addCommand(removeCommand());
   program.addCommand(statusCommand());
+  program.addCommand(workspaceCommand());
   program.addCommand(diffCommand());
   program.addCommand(auditCommand());
   program.addCommand(doctorCommand());
@@ -82,7 +94,8 @@ function buildProgram(options: ProgramOptions): Command {
       }
 
       const action = await promptHomeAction();
-      await buildProgram({ homeMenu: false }).parseAsync([...process.argv.slice(0, 2), action]);
+      const args = action === "workspace" ? ["workspace", "list"] : [action];
+      await buildProgram({ homeMenu: false }).parseAsync([...process.argv.slice(0, 2), ...args]);
     });
   }
 

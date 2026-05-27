@@ -23,6 +23,7 @@ async function isEmptyDirectory(dir: string): Promise<boolean> {
 
 export function pullCommand(): Command {
   return new Command("pull")
+    .alias("clone")
     .description("download a GitHub skill pack release into an editable local workspace")
     .argument("[source]", "github:owner/repo[@tag] or https://github.com/owner/repo")
     .option("-o, --out <dir>", "workspace directory; defaults to ~/.skillpack/workspaces/<owner>/<pack>")

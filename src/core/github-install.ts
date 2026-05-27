@@ -26,6 +26,13 @@ export type GitHubDownloadResult = {
   source: string;
 };
 
+export type GitHubReleaseSummary = {
+  repo: string;
+  tag: string;
+  name: string;
+  releaseUrl: string;
+};
+
 type ReleaseAsset = {
   id: number;
   name: string;
@@ -354,4 +361,16 @@ export async function downloadSkillPackFromGitHub(
     const token = await promptGitHubTokenForPrivateRepo();
     return downloadSkillPackFromGitHubOnce(source, { ...options, token });
   }
+}
+
+export async function getLatestGitHubReleaseSummary(repo: string, token?: string): Promise<GitHubReleaseSummary> {
+  const authToken = resolveToken(token);
+  const resolvedRepo = await resolveGitHubRepoInput(repo, authToken);
+  const release = await resolveRelease({ repo: resolvedRepo }, authToken, { latestOnly: true });
+  return {
+    repo: resolvedRepo,
+    tag: release.tag_name,
+    name: release.name,
+    releaseUrl: release.html_url,
+  };
 }
