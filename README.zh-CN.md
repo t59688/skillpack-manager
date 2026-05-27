@@ -1,36 +1,16 @@
 <div align="center">
 
-<pre>
-  ____  _    _ _ _ ____            _    
- / ___|| | _(_) | |  _ \ __ _  ___| | __
- \___ \| |/ / | | | |_) / _` |/ __| |/ /
-  ___) |   <| | | |  __/ (_| | (__|   < 
- |____/|_|\_\_|_|_|_|   \__,_|\___|_|\_\
-</pre>
+# SkillPack CLI
 
-<strong>SkillPack CLI</strong><br/>
 面向 AI Agent 技能的开源包管理器
 
-<br/>
-
-[English](README.md) | **中文**
-
-<br/>
-
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
-
-<br/>
+[English](README.md) | **中文** · [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
 
 ```bash
 npm i -g @t59688/skillpack
 ```
 
 </div>
-
----
-
-**SkillPack CLI** 是一款面向 AI Agent 技能的开源包管理器。
 
 它可以扫描本机 Agent 技能目录，将多个技能打包成可复现的 **skill pack（技能包）**，发布到 GitHub Releases，安装他人发布的技能包，并在多台机器之间同步可编辑的工作区。
 
@@ -116,7 +96,7 @@ SkillPack 为以下技能目录提供适配器：
 
 ### 通过 npm 安装
 
-使用文首 banner 下方的全局安装命令，然后验证：
+使用文首顶部的全局安装命令，然后验证：
 
 ```bash
 skillpack --help

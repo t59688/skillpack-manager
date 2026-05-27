@@ -1,36 +1,16 @@
 <div align="center">
 
-<pre>
-  ____  _    _ _ _ ____            _    
- / ___|| | _(_) | |  _ \ __ _  ___| | __
- \___ \| |/ / | | | |_) / _` |/ __| |/ /
-  ___) |   <| | | |  __/ (_| | (__|   < 
- |____/|_|\_\_|_|_|_|   \__,_|\___|_|\_\
-</pre>
+# SkillPack CLI
 
-<strong>SkillPack CLI</strong><br/>
 Open-source package manager for AI agent skills
 
-<br/>
-
-**English** | [中文](README.zh-CN.md)
-
-<br/>
-
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
-
-<br/>
+**English** | [中文](README.zh-CN.md) · [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
 
 ```bash
 npm i -g @t59688/skillpack
 ```
 
 </div>
-
----
-
-**SkillPack CLI** is an open-source package manager for AI agent skills.
 
 It lets you scan local agent skill folders, bundle multiple skills into a reproducible **skill pack**, publish that pack to GitHub Releases, install other people's packs, and keep editable workspaces synced across machines.
 
@@ -116,7 +96,7 @@ Many agents also read project-scoped paths such as `.agents/skills/`, `.claude/s
 
 ### Install from npm
 
-Use the global install command shown at the top of this README, then verify:
+Use the global install command in the header above, then verify:
 
 ```bash
 skillpack --help
