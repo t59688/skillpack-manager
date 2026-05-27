@@ -995,3 +995,7 @@ npm run lint
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Friends
+
+- [linuxdo](https://linux.do/) — Thanks to the site and its community users for the support and feedback.

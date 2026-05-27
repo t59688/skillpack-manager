@@ -995,3 +995,7 @@ npm run lint
 ## 许可证
 
 MIT。详见 [LICENSE](LICENSE)。
+
+## 友链
+
+- [linuxdo](https://linux.do/) — 感谢 LinuxDO 站点及其社区用户的支持与反馈。
