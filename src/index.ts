@@ -17,7 +17,8 @@ import { publishCommand } from "./commands/publish.js";
 import { pullCommand } from "./commands/pull.js";
 import { scanCommand } from "./commands/scan.js";
 import { statusCommand } from "./commands/status.js";
-import { uninstallCommand } from "./commands/uninstall.js";
+import { removeCommand, uninstallCommand } from "./commands/uninstall.js";
+import { updateCommand } from "./commands/update.js";
 import { upgradeCommand } from "./commands/upgrade.js";
 import { isInteractive } from "./utils/prompts.js";
 
@@ -25,21 +26,22 @@ type ProgramOptions = {
   homeMenu: boolean;
 };
 
-type HomeAction = "install" | "create" | "publish" | "pull" | "open" | "status" | "scan" | "doctor" | "upgrade";
+type HomeAction = "install" | "update" | "create" | "publish" | "pull" | "open" | "status" | "scan" | "doctor" | "upgrade";
 
 async function promptHomeAction(): Promise<HomeAction> {
   return select({
     message: "What do you want to do?",
     choices: [
       { name: "1. Install a skill pack", value: "install" as const },
-      { name: "2. Create a new skill pack", value: "create" as const },
-      { name: "3. Publish a pack", value: "publish" as const },
-      { name: "4. Pull a pack for editing", value: "pull" as const },
-      { name: "5. Open a workspace", value: "open" as const },
-      { name: "6. Upgrade a published pack", value: "upgrade" as const },
-      { name: "7. Manage my workspaces", value: "status" as const },
-      { name: "8. Scan installed skills", value: "scan" as const },
-      { name: "9. Check environment", value: "doctor" as const },
+      { name: "2. Update installed packs", value: "update" as const },
+      { name: "3. Create a new skill pack", value: "create" as const },
+      { name: "4. Publish a pack", value: "publish" as const },
+      { name: "5. Pull a pack for editing", value: "pull" as const },
+      { name: "6. Open a workspace", value: "open" as const },
+      { name: "7. Upgrade a published pack", value: "upgrade" as const },
+      { name: "8. Manage my workspaces", value: "status" as const },
+      { name: "9. Scan installed skills", value: "scan" as const },
+      { name: "10. Check environment", value: "doctor" as const },
     ],
   });
 }
@@ -63,8 +65,10 @@ function buildProgram(options: ProgramOptions): Command {
   program.addCommand(openCommand());
   program.addCommand(downloadCommand());
   program.addCommand(installCommand());
+  program.addCommand(updateCommand());
   program.addCommand(listCommand());
   program.addCommand(uninstallCommand());
+  program.addCommand(removeCommand());
   program.addCommand(statusCommand());
   program.addCommand(diffCommand());
   program.addCommand(auditCommand());

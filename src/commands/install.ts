@@ -1,12 +1,29 @@
 import chalk from "chalk";
 import { Command } from "commander";
-import { formatTargetHelp } from "../adapters/targets.js";
-import { installPack, resolvePackSource } from "../core/installer.js";
-import { TargetName, TargetSchema } from "../types/schema.js";
-import { promptManyTargets, promptText } from "../utils/prompts.js";
+import { TARGETS, formatTargetHelp } from "../adapters/targets.js";
+import { inspectResolvedPackSource, installPack, resolvePackSource } from "../core/installer.js";
+import { SkillPackManifest, TargetName, TargetSchema } from "../types/schema.js";
+import { getTargetChoices, promptManyTargets, promptText } from "../utils/prompts.js";
 
 function collectTarget(value: string, previous: string[]): string[] {
   return [...previous, value];
+}
+
+async function defaultInstallTargets(manifest: SkillPackManifest, customLocalDir?: string): Promise<TargetName[]> {
+  if (manifest.targets.length > 0) return manifest.targets;
+  const choices = await getTargetChoices(customLocalDir);
+  const detected = choices.filter((choice) => choice.exists && choice.target !== "local").map((choice) => choice.target);
+  return detected.length > 0 ? detected : ["claude"];
+}
+
+function printInstallPreview(source: string, manifest: SkillPackManifest): void {
+  const pack = manifest.owner ? `${manifest.owner}/${manifest.name}` : manifest.name;
+  console.log(`Pack: ${chalk.bold(`${pack}@${manifest.version}`)}`);
+  console.log(`Source: ${source}`);
+  console.log("");
+  console.log(`This pack contains ${manifest.skills.length} skill${manifest.skills.length === 1 ? "" : "s"}:`);
+  for (const skill of manifest.skills) console.log(`- ${skill.name}`);
+  console.log("");
 }
 
 export function installCommand(): Command {
@@ -28,17 +45,32 @@ export function installCommand(): Command {
           process.cwd(),
         ));
       const resolvedSource = await resolvePackSource(source, { token: options.token });
-      const targets: TargetName[] = options.target.length ? options.target.map((target) => TargetSchema.parse(target)) : await promptManyTargets("Install to which agents?");
-      for (const target of targets) {
-        const entry = await installPack(source, {
-          target,
-          targetDir: target === "local" ? options.targetDir : undefined,
-          overwrite: options.overwrite,
-          token: options.token,
-          resolvedSource,
-        });
-        console.log(chalk.green(`Installed ${entry.pack}@${entry.version} to ${entry.target}`));
-        for (const skill of entry.skills) console.log(`${chalk.green("✓")} ${skill.name} ${chalk.dim(skill.path)}`);
+      const inspected = await inspectResolvedPackSource(resolvedSource);
+
+      try {
+        printInstallPreview(source, inspected.manifest);
+        const defaults = await defaultInstallTargets(inspected.manifest, options.targetDir);
+        const targets: TargetName[] = options.target.length
+          ? options.target.map((target) => TargetSchema.parse(target))
+          : await promptManyTargets("Install to:", defaults, options.targetDir);
+
+        console.log("Install to:");
+        for (const target of targets) console.log(`- ${TARGETS[target].displayName}`);
+        console.log("");
+
+        for (const target of targets) {
+          const entry = await installPack(source, {
+            target,
+            targetDir: target === "local" ? options.targetDir : undefined,
+            overwrite: options.overwrite,
+            token: options.token,
+            resolvedSource,
+          });
+          console.log(chalk.green(`Installed ${entry.pack}@${entry.version} to ${TARGETS[entry.target].displayName}`));
+          for (const skill of entry.skills) console.log(`${chalk.green("OK")} ${skill.name} ${chalk.dim(skill.path)}`);
+        }
+      } finally {
+        await inspected.cleanup();
       }
     });
 }

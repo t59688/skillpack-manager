@@ -20,3 +20,19 @@ export function bumpVersion(version: string, bump: VersionBump): string {
   }
   return `${major}.${minor}.${patch}`;
 }
+
+function parseSemver(version: string): [number, number, number] {
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
+  if (!match) throw new SkillPackError(`Invalid semver version: ${version}`, "INVALID_VERSION");
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+export function compareVersions(left: string, right: string): number {
+  const a = parseSemver(left);
+  const b = parseSemver(right);
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] > b[index]) return 1;
+    if (a[index] < b[index]) return -1;
+  }
+  return 0;
+}

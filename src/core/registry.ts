@@ -33,10 +33,21 @@ export async function recordInstall(entry: InstalledPack): Promise<void> {
   await saveInstalledDb(filtered);
 }
 
+export function installedPackMatches(pack: string, reference: string): boolean {
+  const normalizedPack = pack.toLowerCase();
+  const normalizedRef = reference.toLowerCase();
+  return normalizedPack === normalizedRef || normalizedPack.split("/").pop() === normalizedRef;
+}
+
+export async function findInstalledPacks(pack?: string, target?: TargetName): Promise<InstalledPack[]> {
+  const db = await loadInstalledDb();
+  return db.filter((item) => (!pack || installedPackMatches(item.pack, pack)) && (!target || item.target === target));
+}
+
 export async function removeInstall(pack: string, target?: TargetName): Promise<InstalledPack[]> {
   const db = await loadInstalledDb();
-  const removed = db.filter((item) => item.pack === pack && (!target || item.target === target));
-  const kept = db.filter((item) => !(item.pack === pack && (!target || item.target === target)));
+  const removed = db.filter((item) => installedPackMatches(item.pack, pack) && (!target || item.target === target));
+  const kept = db.filter((item) => !(installedPackMatches(item.pack, pack) && (!target || item.target === target)));
   await saveInstalledDb(kept);
   return removed;
 }

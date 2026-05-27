@@ -76,9 +76,9 @@ export async function promptOneTarget(message = "Choose target agent", defaultTa
   });
 }
 
-export async function promptManyTargets(message = "Choose target agents", defaults?: TargetName[]): Promise<TargetName[]> {
+export async function promptManyTargets(message = "Choose target agents", defaults?: TargetName[], customLocalDir?: string): Promise<TargetName[]> {
   requireInteractive(message);
-  const choices = await getTargetChoices();
+  const choices = await getTargetChoices(customLocalDir);
   const defaultTargets = defaults ?? [];
   const selected = await checkbox({
     message,

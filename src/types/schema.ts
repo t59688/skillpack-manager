@@ -48,6 +48,7 @@ export const InstalledPackSchema = z.object({
   pack: z.string(),
   version: z.string(),
   target: TargetSchema,
+  targetDir: z.string().optional(),
   installedAt: z.string(),
   source: z.string(),
   skills: z.array(
