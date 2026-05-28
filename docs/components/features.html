@@ -1,0 +1,77 @@
+<!-- Features Component -->
+<section id="features" class="section">
+  <div class="container">
+    <div class="text-center mb-16" data-animate>
+      <h2>Everything you need</h2>
+      <p class="mx-auto">From scanning skills to publishing them — a complete lifecycle for your AI agent configurations.</p>
+    </div>
+    <div class="grid grid--3">
+      <!-- Scan -->
+      <div class="component-feature" data-animate>
+        <div class="component-feature__icon bg-blue-50 border border-blue-100">
+          <svg class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+          </svg>
+        </div>
+        <h3 class="component-feature__title">Scan</h3>
+        <p class="component-feature__desc">Discover skills in common agent directories. Interactive checkbox picker for multi-select scanning.</p>
+        <code class="component-feature__code">skillpack scan ~/.claude/skills</code>
+      </div>
+      <!-- Create -->
+      <div class="component-feature" data-animate>
+        <div class="component-feature__icon bg-emerald-50 border border-emerald-100">
+          <svg class="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+          </svg>
+        </div>
+        <h3 class="component-feature__title">Create</h3>
+        <p class="component-feature__desc">Package multiple skills into a reproducible stack with a YAML manifest and version control.</p>
+        <code class="component-feature__code">skillpack create sales-pack</code>
+      </div>
+      <!-- Pack -->
+      <div class="component-feature" data-animate>
+        <div class="component-feature__icon bg-purple-50 border border-purple-100">
+          <svg class="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/>
+          </svg>
+        </div>
+        <h3 class="component-feature__title">Pack</h3>
+        <p class="component-feature__desc">Bundle your pack into a portable .skillpack artifact with checksums for integrity verification.</p>
+        <code class="component-feature__code">skillpack pack ./sales-pack --out dist</code>
+      </div>
+      <!-- Install -->
+      <div class="component-feature" data-animate>
+        <div class="component-feature__icon bg-amber-50 border border-amber-100">
+          <svg class="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+          </svg>
+        </div>
+        <h3 class="component-feature__title">Install</h3>
+        <p class="component-feature__desc">Install packs into any supported agent with automatic directory mapping and safe uninstallation.</p>
+        <code class="component-feature__code">skillpack install ./pack.skillpack --target claude</code>
+      </div>
+      <!-- Audit -->
+      <div class="component-feature" data-animate>
+        <div class="component-feature__icon bg-red-50 border border-red-100">
+          <svg class="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
+          </svg>
+        </div>
+        <h3 class="component-feature__title">Audit</h3>
+        <p class="component-feature__desc">Static analysis for security — detects suspicious scripts, embedded secrets, and destructive commands.</p>
+        <code class="component-feature__code">skillpack audit ./sales-pack</code>
+      </div>
+      <!-- Diff -->
+      <div class="component-feature" data-animate>
+        <div class="component-feature__icon bg-cyan-50 border border-cyan-100">
+          <svg class="w-6 h-6 text-cyan-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
+          </svg>
+        </div>
+        <h3 class="component-feature__title">Diff &amp; Sync</h3>
+        <p class="component-feature__desc">Detect drift between pack and installed skills. Sync changes across machines and team members.</p>
+        <code class="component-feature__code">skillpack diff ./sales-pack --target claude</code>
+      </div>
+    </div>
+  </div>
+</section>

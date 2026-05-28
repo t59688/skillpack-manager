@@ -1,0 +1,81 @@
+<!-- Commands Component -->
+<section id="commands" class="section section--alt">
+  <div class="container">
+    <div class="text-center mb-16" data-animate>
+      <h2>Command Reference</h2>
+      <p class="mx-auto">Full command set for the complete skill pack lifecycle.</p>
+    </div>
+    <div class="space-y-4 max-w-4xl mx-auto">
+      <div class="component-command" data-animate>
+        <div class="component-command__header">
+          <code class="component-command__code">skillpack scan [path]</code>
+          <span class="component-command__badge component-command__badge--p0">P0</span>
+        </div>
+        <div class="component-command__body">
+          <p class="component-command__desc">Scan existing skill directories in common agent paths. Shows present, missing, and modified skills.</p>
+          <code class="component-command__example">skillpack scan ~/.claude/skills</code>
+        </div>
+      </div>
+      <div class="component-command" data-animate>
+        <div class="component-command__header">
+          <code class="component-command__code">skillpack create &lt;name&gt;</code>
+          <span class="component-command__badge component-command__badge--p0">P0</span>
+        </div>
+        <div class="component-command__body">
+          <p class="component-command__desc">Create a new skill pack with manifest, owner namespace, and visibility settings.</p>
+          <code class="component-command__example">skillpack create sales-pack --owner tiechui</code>
+        </div>
+      </div>
+      <div class="component-command" data-animate>
+        <div class="component-command__header">
+          <code class="component-command__code">skillpack add &lt;pack&gt; &lt;skill&gt;</code>
+          <span class="component-command__badge component-command__badge--p0">P0</span>
+        </div>
+        <div class="component-command__body">
+          <p class="component-command__desc">Add skills from agent directories to your pack. Interactive picker for multi-select.</p>
+          <code class="component-command__example">skillpack add ./sales-pack ~/.claude/skills/customer-summary</code>
+        </div>
+      </div>
+      <div class="component-command" data-animate>
+        <div class="component-command__header">
+          <code class="component-command__code">skillpack pack &lt;dir&gt;</code>
+          <span class="component-command__badge component-command__badge--p0">P0</span>
+        </div>
+        <div class="component-command__body">
+          <p class="component-command__desc">Create a distributable .skillpack archive with manifest, skills, and shared resources.</p>
+          <code class="component-command__example">skillpack pack ./sales-pack --out dist</code>
+        </div>
+      </div>
+      <div class="component-command" data-animate>
+        <div class="component-command__header">
+          <code class="component-command__code">skillpack install &lt;source&gt;</code>
+          <span class="component-command__badge component-command__badge--p0">P0</span>
+        </div>
+        <div class="component-command__body">
+          <p class="component-command__desc">Install a pack into one or more agent targets. Records installation metadata for tracking.</p>
+          <code class="component-command__example">skillpack install ./dist/sales-pack.skillpack --target claude</code>
+        </div>
+      </div>
+      <div class="component-command" data-animate>
+        <div class="component-command__header">
+          <code class="component-command__code">skillpack publish &lt;dir&gt;</code>
+          <span class="component-command__badge component-command__badge--p1">P1</span>
+        </div>
+        <div class="component-command__body">
+          <p class="component-command__desc">Publish to GitHub Releases or local directory. Supports version bumping and overwrite control.</p>
+          <code class="component-command__example">skillpack publish ./sales-pack --to github --repo owner/repo</code>
+        </div>
+      </div>
+      <div class="component-command" data-animate>
+        <div class="component-command__header">
+          <code class="component-command__code">skillpack pull &lt;source&gt;</code>
+          <span class="component-command__badge component-command__badge--p1">P1</span>
+        </div>
+        <div class="component-command__body">
+          <p class="component-command__desc">Pull a published pack from GitHub or remote registry into a local workspace for editing.</p>
+          <code class="component-command__example">skillpack pull github:owner/repo --out ./sales-pack</code>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

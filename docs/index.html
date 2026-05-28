@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkillPack Manager — AI Agent Skill Pack Manager</title>
+  <meta name="description" content="A local-first CLI for packaging, sharing, installing, auditing, and syncing AI agent skill packs.">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/components.css">
+
+  <!-- Component Loading -->
+  <style>
+    /* Hide component placeholders until loaded */
+    [data-component] { visibility: hidden; }
+    [data-component].loaded { visibility: visible; }
+  </style>
+</head>
+<body>
+
+  <!-- Header Component -->
+  <div id="header" data-component="components/header.html"></div>
+
+  <!-- Hero Component -->
+  <div id="hero" data-component="components/hero.html"></div>
+
+  <!-- Features Component -->
+  <div id="features" data-component="components/features.html"></div>
+
+  <!-- Divider -->
+  <div class="component-divider"></div>
+
+  <!-- Commands Component -->
+  <div id="commands" data-component="components/commands.html"></div>
+
+  <!-- Divider -->
+  <div class="component-divider"></div>
+
+  <!-- Agents Component -->
+  <div id="agents" data-component="components/agents.html"></div>
+
+  <!-- Getting Started Component -->
+  <div id="getting-started" data-component="components/getting-started.html"></div>
+
+  <!-- Architecture Component -->
+  <div id="architecture" data-component="components/architecture.html"></div>
+
+  <!-- Security Component -->
+  <div id="security" data-component="components/security.html"></div>
+
+  <!-- Footer Component -->
+  <div id="footer" data-component="components/footer.html"></div>
+
+  <!-- Component Loader -->
+  <script>
+    async function loadComponents() {
+      const components = document.querySelectorAll('[data-component]');
+      for (const el of components) {
+        try {
+          const response = await fetch(el.dataset.component);
+          const html = await response.text();
+          el.innerHTML = html;
+          el.classList.add('loaded');
+        } catch (err) {
+          console.warn(`Failed to load component: ${el.dataset.component}`, err);
+          el.textContent = `[Component not found: ${el.dataset.component}]`;
+          el.classList.add('loaded');
+        }
+      }
+    }
+
+    // Load components after DOM ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', loadComponents);
+    } else {
+      loadComponents();
+    }
+  </script>
+
+  <!-- Scroll Animation -->
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '1';
+          entry.target.style.transform = 'translateY(0)';
+          entry.target.style.transition = 'opacity 0.6s ease-out, transform 0.6s ease-out';
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+    document.querySelectorAll('[data-animate]').forEach(el => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(1.5rem)';
+      observer.observe(el);
+    });
+  </script>
+</body>
+</html>
